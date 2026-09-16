@@ -171,26 +171,40 @@ committed to the repository.
 
 ## Repository Structure
 
-The repository is expected to follow a structure similar to the following as\
-the implementation is developed:
+The repository follows this structure:
 
 ```text
-.
+multi-agent-financial-analysis/
 ├── README.md
 ├── requirements.txt
+├── .gitignore
 ├── .env.example
 ├── notebooks/
-│   └── investment_research_agent.ipynb
+│   └── final_project.ipynb
 ├── src/
+│   ├── __init__.py
+│   ├── state.py
+│   ├── graph.py
 │   ├── agents/
-│   ├── workflows/
+│   │   ├── planner.py
+│   │   ├── router.py
+│   │   ├── market_agent.py
+│   │   ├── financial_agent.py
+│   │   ├── news_agent.py
+│   │   ├── synthesis_agent.py
+│   │   ├── evaluator.py
+│   │   └── optimizer.py
 │   ├── tools/
-│   ├── memory/
-│   └── evaluation/
-├── tests/
+│   │   ├── market_tools.py
+│   │   ├── financial_tools.py
+│   │   └── news_tools.py
+│   ├── workflows/
+│   │   └── news_pipeline.py
+│   └── memory/
+│       └── memory_store.py
 ├── data/
-│   └── README.md
-└── outputs/
+│   └── memory.json
+└── tests/
 ```
 
 Generated data, reports, notebook checkpoints, secrets, and other large or\
