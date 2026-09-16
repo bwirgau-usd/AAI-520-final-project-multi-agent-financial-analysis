@@ -1,0 +1,57 @@
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+*.pem
+credentials*.json
+
+# Python environments
+.venv/
+venv/
+env/
+
+# Python caches and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+
+# Packaging and build output
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test, coverage, and lint caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
+.jupyter/
+
+# Runtime output, logs, and local memory
+outputs/*
+!outputs/.gitkeep
+logs/
+*.log
+data/memory/*
+!data/memory/.gitkeep
+
+# Locally downloaded datasets
+data/raw/*
+!data/raw/.gitkeep
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
