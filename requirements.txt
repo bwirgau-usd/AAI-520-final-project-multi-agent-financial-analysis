@@ -4,10 +4,16 @@ pydantic>=2.10.0,<3.0.0
 python-dotenv>=1.0.1,<2.0.0
 tenacity>=9.0.0,<10.0.0
 
-# Financial, economic, and news data
+# Yahoo Finance
 yfinance>=0.2.54,<2.0.0
+
+# FRED
 fredapi>=0.5.2,<1.0.0
+
+# NewsAPI
 newsapi-python>=0.2.7,<1.0.0
+
+# Shared HTTP and HTML support for SEC EDGAR and other provider adapters
 requests>=2.32.0,<3.0.0
 beautifulsoup4>=4.13.0,<5.0.0
 
