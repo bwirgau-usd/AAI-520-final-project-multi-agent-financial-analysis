@@ -59,9 +59,14 @@ agents and data tools.
 ```mermaid
 flowchart LR
     U[User and Stock Symbol] --> P[Research Planner]
-    P --> T[Data and Retrieval Tools]
-    T --> C[News Processing Chain]
-    T --> R[Specialist Router]
+    P --> T[Domain Tools]
+    T --> A[Provider Adapters]
+    A --> Y[Yahoo Finance]
+    A --> X[SEC EDGAR / FRED / NewsAPI / Alpha Vantage]
+    Y --> C[News Processing Chain]
+    Y --> R[Specialist Router]
+    X --> C
+    X --> R
     C --> R
     R --> N[News Analyst]
     R --> E[Earnings Analyst]
@@ -154,16 +159,23 @@ reached.
 
 ## Data Sources and Tools
 
-The implementation may use the following sources, subject to availability and\
-API access:
+Yahoo Finance is the initial ingestion source. Additional providers are kept in
+separate adapter packages so they can be added without coupling provider APIs
+to agent or analysis logic.
 
-| Source                             | Intended use                                          |
-| ---------------------------------- | ----------------------------------------------------- |
-| Yahoo Finance / `yfinance`         | Prices, company information, and financial statements |
-| SEC EDGAR                          | Company filings and regulatory disclosures            |
-| FRED                               | Macroeconomic indicators                              |
-| NewsAPI or financial-news datasets | Current and historical company news                   |
-| Alpha Vantage                      | Supplemental market and fundamental data              |
+| Source | Status | Intended use |
+| --- | --- | --- |
+| Yahoo Finance / `yfinance` | Initial | Prices, company information, and financial statements |
+| SEC EDGAR | Scaffolded | Company filings and regulatory disclosures |
+| FRED | Scaffolded | Macroeconomic indicators |
+| NewsAPI | Scaffolded | Current and historical company news |
+| Alpha Vantage | Scaffolded | Supplemental market and fundamental data |
+
+Provider-specific authentication, retrieval, parsing, rate-limit handling, and
+error translation belong under `src/data_sources/<provider>/`. Modules under
+`src/tools/` provide a provider-independent interface to agents and normalize
+records before analysis. This separation also allows a tool to combine or fall
+back between sources later.
 
 All external information used in a report should retain its source and retrieval\
 date. API credentials must be stored in environment variables and must not be\
@@ -171,26 +183,59 @@ committed to the repository.
 
 ## Repository Structure
 
-The repository is expected to follow a structure similar to the following as\
-the implementation is developed:
+The repository follows this structure:
 
 ```text
-.
+multi-agent-financial-analysis/
 ├── README.md
 ├── requirements.txt
+├── .gitignore
 ├── .env.example
 ├── notebooks/
-│   └── investment_research_agent.ipynb
+│   └── final_project.ipynb
 ├── src/
+│   ├── __init__.py
+│   ├── state.py
+│   ├── graph.py
 │   ├── agents/
-│   ├── workflows/
+│   │   ├── planner.py
+│   │   ├── router.py
+│   │   ├── market_agent.py
+│   │   ├── financial_agent.py
+│   │   ├── news_agent.py
+│   │   ├── synthesis_agent.py
+│   │   ├── evaluator.py
+│   │   └── optimizer.py
+│   ├── data_sources/
+│   │   ├── README.md
+│   │   ├── __init__.py
+│   │   ├── base.py
+│   │   ├── yahoo_finance/
+│   │   │   ├── __init__.py
+│   │   │   └── client.py
+│   │   ├── sec_edgar/
+│   │   │   ├── __init__.py
+│   │   │   └── client.py
+│   │   ├── fred/
+│   │   │   ├── __init__.py
+│   │   │   └── client.py
+│   │   ├── news_api/
+│   │   │   ├── __init__.py
+│   │   │   └── client.py
+│   │   └── alpha_vantage/
+│   │       ├── __init__.py
+│   │       └── client.py
 │   ├── tools/
-│   ├── memory/
-│   └── evaluation/
-├── tests/
+│   │   ├── market_tools.py
+│   │   ├── financial_tools.py
+│   │   └── news_tools.py
+│   ├── workflows/
+│   │   └── news_pipeline.py
+│   └── memory/
+│       └── memory_store.py
 ├── data/
-│   └── README.md
-└── outputs/
+│   └── memory.json
+└── tests/
 ```
 
 Generated data, reports, notebook checkpoints, secrets, and other large or\
