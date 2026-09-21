@@ -4,6 +4,8 @@ import os
 
 import pytest
 
+from src.llm import ask_llm
+
 
 RUN_OLLAMA_TESTS = os.getenv("RUN_OLLAMA_TESTS") == "1"
 
@@ -15,23 +17,9 @@ RUN_OLLAMA_TESTS = os.getenv("RUN_OLLAMA_TESTS") == "1"
 def test_ollama_answers_financial_prompt() -> None:
     """Confirm that the configured local model accepts and answers a prompt."""
 
-    import ollama
-
-    response = ollama.chat(
+    response = ask_llm(
+        "Explain what a P/E ratio means in one sentence.",
         model=os.getenv("OLLAMA_MODEL", "llama3.2"),
-        messages=[
-            {
-                "role": "user",
-                "content": "Explain what a P/E ratio means in one sentence.",
-            }
-        ],
     )
 
-    if isinstance(response, dict):
-        content = response.get("message", {}).get("content")
-    else:
-        content = getattr(getattr(response, "message", None), "content", None)
-
-    assert isinstance(content, str)
-    assert content.strip()
-
+    assert response

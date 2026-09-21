@@ -197,6 +197,9 @@ multi-agent-financial-analysis/
 │   ├── __init__.py
 │   ├── state.py
 │   ├── graph.py
+│   ├── llm/
+│   │   ├── __init__.py
+│   │   └── ollama.py
 │   ├── agents/
 │   │   ├── planner.py
 │   │   ├── router.py
