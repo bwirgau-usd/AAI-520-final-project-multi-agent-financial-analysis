@@ -291,6 +291,21 @@ The notebook will accept a stock symbol, execute the three required workflows,\
 display intermediate agent outputs, and generate an evaluated final report.\
 Concrete commands and examples will be added as the implementation is completed.
 
+### Testing
+
+Run the offline test suite with:
+
+```bash
+pytest
+```
+
+The Ollama prompt smoke test requires a running local Ollama service and is\
+disabled by default. Enable it explicitly with:
+
+```bash
+RUN_OLLAMA_TESTS=1 pytest tests/test_ollama_integration.py -v
+```
+
 ## Evaluation and Iteration
 
 Draft reports will be evaluated with measurable criteria such as:
