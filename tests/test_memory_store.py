@@ -1,41 +1,92 @@
+"""Offline tests for persistent research memory."""
+
 import json
+import os
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
 
-from src.memory import memory_store
-
-
-def test_load_memory_returns_empty_list_when_no_file(tmp_path, monkeypatch):
-    monkeypatch.setenv("MEMORY_PATH", str(tmp_path / "memory.json"))
-    assert memory_store.load_memory("AAPL") == []
-
-
-def test_save_memory_persists_entry_to_disk(tmp_path, monkeypatch):
-    path = tmp_path / "memory.json"
-    monkeypatch.setenv("MEMORY_PATH", str(path))
-
-    memory_store.save_memory("aapl", "Revenue growth was overstated last run.", ["revenue"])
-
-    assert path.exists()
-    with path.open() as f:
-        data = json.load(f)
-    assert data["entries"]["AAPL"][0]["feedback"] == "Revenue growth was overstated last run."
+from src.memory import ResearchMemoryStore
 
 
-def test_save_memory_appends_multiple_entries(tmp_path, monkeypatch):
-    monkeypatch.setenv("MEMORY_PATH", str(tmp_path / "memory.json"))
+class TestResearchMemoryStore(unittest.TestCase):
+    def test_missing_and_malformed_files_are_empty(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "memory.json"
+            store = ResearchMemoryStore(path)
+            self.assertEqual(store.load(), [])
 
-    memory_store.save_memory("AAPL", "First note")
-    memory_store.save_memory("AAPL", "Second note")
+            path.write_text("not-json", encoding="utf-8")
+            self.assertEqual(store.load(), [])
 
-    entries = memory_store.load_memory("AAPL")
-    assert len(entries) == 2
-    assert entries[0]["feedback"] == "Second note"
+    def test_add_creates_directory_and_persists_utc_entry(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "nested" / "memory.json"
+            store = ResearchMemoryStore(path)
 
+            entry = store.add(" aapl ", "Research summary", ["Missing filing"])
 
-def test_load_memory_is_isolated_per_symbol(tmp_path, monkeypatch):
-    monkeypatch.setenv("MEMORY_PATH", str(tmp_path / "memory.json"))
+            self.assertEqual(entry["symbol"], "AAPL")
+            self.assertIsNotNone(datetime.fromisoformat(entry["date"]).tzinfo)
+            self.assertEqual(ResearchMemoryStore(path).load(), [entry])
+            self.assertFalse(path.with_suffix(".json.tmp").exists())
 
-    memory_store.save_memory("AAPL", "Apple note")
-    memory_store.save_memory("MSFT", "Microsoft note")
+    def test_filters_symbols_without_case_sensitivity(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            store = ResearchMemoryStore(Path(temporary_directory) / "memory.json")
+            store.add("AAPL", "Apple")
+            store.add("MSFT", "Microsoft")
 
-    assert len(memory_store.load_memory("AAPL")) == 1
-    assert len(memory_store.load_memory("MSFT")) == 1
+            entries = store.for_symbol("aapl")
+
+            self.assertEqual([entry["summary"] for entry in entries], ["Apple"])
+
+    def test_limits_entries(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            store = ResearchMemoryStore(
+                Path(temporary_directory) / "memory.json", max_entries=2
+            )
+            store.add("AAPL", "First")
+            store.add("AAPL", "Second")
+            store.add("AAPL", "Third")
+
+            self.assertEqual(
+                [entry["summary"] for entry in store.load()],
+                ["Second", "Third"],
+            )
+
+    def test_loads_versioned_entry_format(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            path = Path(temporary_directory) / "memory.json"
+            entry = {"symbol": "AAPL", "summary": "Existing"}
+            path.write_text(
+                json.dumps({"version": 1, "entries": [entry]}),
+                encoding="utf-8",
+            )
+
+            self.assertEqual(ResearchMemoryStore(path).load(), [entry])
+
+    def test_from_env_resolves_relative_path_from_project_root(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            with patch.dict(
+                os.environ,
+                {"MEMORY_PATH": "state/research.json"},
+            ):
+                store = ResearchMemoryStore.from_env(root)
+
+            self.assertEqual(
+                store.path,
+                (root / "state/research.json").resolve(),
+            )
+
+    def test_rejects_empty_symbol_and_invalid_limit(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            store = ResearchMemoryStore(Path(temporary_directory) / "memory.json")
+            with self.assertRaisesRegex(ValueError, "non-empty"):
+                store.for_symbol(" ")
+
+        with self.assertRaisesRegex(ValueError, "at least 1"):
+            ResearchMemoryStore("memory.json", max_entries=0)

@@ -1,9 +1,4 @@
-"""Persistent memory operations for lessons learned across research runs.
-
-Memory is stored as JSON, keyed by ticker symbol, so the Planner can look up
-prior weaknesses before building a new research plan. Each entry keeps a
-timestamp so stale notes can be told apart from current findings.
-"""
+"""Persistent memory operations for lessons learned across research runs."""
 
 from __future__ import annotations
 
@@ -13,54 +8,105 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-_DEFAULT_MEMORY_PATH = "data/memory/research_memory.json"
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_MEMORY_PATH = Path("data/memory/research_memory.json")
 
 
-def _memory_path() -> Path:
-    return Path(os.getenv("MEMORY_PATH", _DEFAULT_MEMORY_PATH))
+class ResearchMemoryStore:
+    """Store a bounded collection of timestamped research notes in JSON."""
 
+    def __init__(self, path: Path | str, max_entries: int = 20) -> None:
+        if max_entries < 1:
+            raise ValueError("max_entries must be at least 1")
+        self.path = Path(path)
+        self.max_entries = max_entries
 
-def _read_store() -> dict[str, Any]:
-    path = _memory_path()
-    if not path.exists():
-        return {"version": 1, "entries": {}}
+    @classmethod
+    def from_env(
+        cls,
+        project_root: Path | str | None = None,
+        *,
+        max_entries: int = 20,
+    ) -> "ResearchMemoryStore":
+        """Build a store from ``MEMORY_PATH``, loading the project ``.env``."""
 
-    with path.open("r", encoding="utf-8") as f:
-        data = json.load(f)
+        root = Path(project_root or PROJECT_ROOT).resolve()
+        try:
+            from dotenv import load_dotenv
+        except ImportError:  # pragma: no cover - dependency failure
+            pass
+        else:
+            load_dotenv(root / ".env")
 
-    data.setdefault("entries", {})
-    return data
+        path = Path(os.getenv("MEMORY_PATH", str(DEFAULT_MEMORY_PATH)))
+        if not path.is_absolute():
+            path = root / path
+        return cls(path, max_entries=max_entries)
 
+    def load(self) -> list[dict[str, Any]]:
+        """Load valid memory entries, returning an empty list when absent."""
 
-def _write_store(data: dict[str, Any]) -> None:
-    path = _memory_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+        try:
+            raw = self.path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return []
 
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return []
 
-def load_memory(symbol: str) -> list[dict[str, Any]]:
-    """Return prior research notes for a symbol, most recent first."""
-    entries = _read_store()["entries"].get(symbol.upper(), [])
-    return sorted(entries, key=lambda e: e.get("timestamp", ""), reverse=True)
+        if isinstance(payload, dict):
+            payload = payload.get("entries", [])
+        if not isinstance(payload, list):
+            return []
+        return [entry for entry in payload if isinstance(entry, dict)]
 
+    def add(
+        self,
+        symbol: str,
+        summary: str,
+        weaknesses: list[Any] | None = None,
+    ) -> dict[str, Any]:
+        """Append one entry and atomically persist the bounded collection."""
 
-def save_memory(
-    symbol: str,
-    feedback: str,
-    research_topics: list[str] | None = None,
-) -> dict[str, Any]:
-    """Append a new memory entry for a symbol and persist it to disk."""
-    data = _read_store()
-    symbol_key = symbol.upper()
+        normalized_symbol = self._normalize_symbol(symbol)
+        entry = {
+            "date": datetime.now(timezone.utc).isoformat(),
+            "symbol": normalized_symbol,
+            "summary": summary,
+            "weaknesses": list(weaknesses or []),
+        }
+        entries = (self.load() + [entry])[-self.max_entries :]
+        self._write(entries)
+        return entry
 
-    entry = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "feedback": feedback,
-        "research_topics": research_topics or [],
-    }
+    def for_symbol(self, symbol: str) -> list[dict[str, Any]]:
+        """Return memories matching ``symbol`` without case sensitivity."""
 
-    data["entries"].setdefault(symbol_key, []).append(entry)
-    _write_store(data)
+        normalized_symbol = self._normalize_symbol(symbol)
+        return [
+            entry
+            for entry in self.load()
+            if str(entry.get("symbol", "")).strip().upper() == normalized_symbol
+        ]
 
-    return entry
+    def _write(self, entries: list[dict[str, Any]]) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        temporary_path = self.path.with_suffix(f"{self.path.suffix}.tmp")
+        try:
+            temporary_path.write_text(
+                json.dumps(entries, indent=2, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            temporary_path.replace(self.path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        normalized_symbol = symbol.strip().upper()
+        if not normalized_symbol:
+            raise ValueError("symbol must be a non-empty string")
+        return normalized_symbol

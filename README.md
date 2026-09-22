@@ -159,22 +159,22 @@ reached.
 
 ## Data Sources and Tools
 
-Yahoo Finance is the initial ingestion source. Additional providers are kept in
-separate adapter packages so they can be added without coupling provider APIs
+Yahoo Finance is the initial ingestion source. Additional providers are kept in\
+separate adapter packages so they can be added without coupling provider APIs\
 to agent or analysis logic.
 
-| Source | Status | Intended use |
-| --- | --- | --- |
-| Yahoo Finance / `yfinance` | Initial | Prices, company information, and financial statements |
-| SEC EDGAR | Scaffolded | Company filings and regulatory disclosures |
-| FRED | Scaffolded | Macroeconomic indicators |
-| NewsAPI | Scaffolded | Current and historical company news |
-| Alpha Vantage | Scaffolded | Supplemental market and fundamental data |
+| Source                   | Status     | Intended use                                          |
+| ------------------------ | ---------- | ----------------------------------------------------- |
+| Yahoo Finance / `yfinance` | Initial    | Prices, company information, and financial statements |
+| SEC EDGAR                | Scaffolded | Company filings and regulatory disclosures            |
+| FRED                     | Scaffolded | Macroeconomic indicators                              |
+| NewsAPI                  | Scaffolded | Current and historical company news                   |
+| Alpha Vantage            | Scaffolded | Supplemental market and fundamental data              |
 
-Provider-specific authentication, retrieval, parsing, rate-limit handling, and
-error translation belong under `src/data_sources/<provider>/`. Modules under
-`src/tools/` provide a provider-independent interface to agents and normalize
-records before analysis. This separation also allows a tool to combine or fall
+Provider-specific authentication, retrieval, parsing, rate-limit handling, and\
+error translation belong under `src/data_sources/<provider>/`. Modules under\
+`src/tools/` provide a provider-independent interface to agents and normalize\
+records before analysis. This separation also allows a tool to combine or fall\
 back between sources later.
 
 All external information used in a report should retain its source and retrieval\
@@ -197,6 +197,11 @@ multi-agent-financial-analysis/
 │   ├── __init__.py
 │   ├── state.py
 │   ├── graph.py
+│   ├── cli.py
+│   ├── llm/
+│   │   ├── __init__.py
+│   │   ├── ollama.py
+│   │   └── parsing.py
 │   ├── agents/
 │   │   ├── planner.py
 │   │   ├── router.py
@@ -226,15 +231,21 @@ multi-agent-financial-analysis/
 │   │       ├── __init__.py
 │   │       └── client.py
 │   ├── tools/
+│   │   ├── executor.py
 │   │   ├── market_tools.py
 │   │   ├── financial_tools.py
+│   │   ├── registry.py
 │   │   └── news_tools.py
+│   ├── reporting/
+│   │   └── console.py
 │   ├── workflows/
 │   │   └── news_pipeline.py
 │   └── memory/
+│       ├── curator.py
 │       └── memory_store.py
 ├── data/
-│   └── memory.json
+│   └── memory/
+│       └── research_memory.json  # Runtime file, ignored by Git
 └── tests/
 ```
 
@@ -279,17 +290,39 @@ Never commit the populated `.env` file or expose API keys in notebook output.
 
 ## Usage
 
-The primary demonstration will be provided in the project notebook. After the\
-dependencies and credentials are configured, start Jupyter and run the notebook\
-from top to bottom:
+[`notebooks/final_project.ipynb`](notebooks/final_project.ipynb) is the canonical\
+project entry point. Start the configured Ollama model, then open the notebook:
 
 ```bash
-jupyter lab
+ollama serve
+jupyter lab notebooks/final_project.ipynb
 ```
 
-The notebook will accept a stock symbol, execute the three required workflows,\
-display intermediate agent outputs, and generate an evaluated final report.\
-Concrete commands and examples will be added as the implementation is completed.
+Run the notebook from top to bottom. The setup section only constructs the\
+workflow; Section 9 performs the live seven-stage run, displays its structured\
+artifacts, and renders the final report. Set `DEFAULT_TICKER` and `OLLAMA_MODEL`\
+in `.env` to change the defaults.
+
+The same extracted workflow also has an optional terminal interface:
+
+```bash
+python -m src.cli
+```
+
+### Testing
+
+Run the offline test suite with:
+
+```bash
+pytest
+```
+
+The Ollama prompt smoke test requires a running local Ollama service and is\
+disabled by default. Enable it explicitly with:
+
+```bash
+RUN_OLLAMA_TESTS=1 pytest tests/test_ollama_integration.py -v
+```
 
 ## Evaluation and Iteration
 
@@ -329,11 +362,118 @@ The final submission will include:
 
 ## Team and Contributions
 
-| Team member     | Primary responsibilities |
-| --------------- | ------------------------ |
-| Brandon Wirgau  |                          |
-| Arslan Isaac    |                          |
-| *Christina Sadiq* |                          |
+<table>
+<tr>
+<th>
+
+Team member
+
+</th>
+<th>
+
+Primary responsibilities
+
+</th>
+</tr>
+<tr>
+<td>
+
+Brandon Wirgau
+
+</td>
+<td>
+
+- [ ] Build financial statements tool
+
+- [ ] Implement Evaluator Agent
+
+- [ ] Implement Self-Reflection
+
+- [ ] Implement Optimizer
+
+- [ ] Define evaluation criteria / rubric
+
+- [ ] Implement Financial Agent
+
+</td>
+</tr>
+<tr>
+<td>
+
+Arslan Isaac
+
+</td>
+<td>
+
+- [ ] Implement Router
+
+- [ ] Implement Planner Agent
+
+- [ ] Build Yahoo Finance market data tools
+
+- [ ] Calculate market metrics
+
+- [ ] Implement Market Agent
+
+- [ ] Additional Person 1 task(s) hidden in screenshot
+
+</td>
+</tr>
+<tr>
+<td>
+
+*Christina Sadiq*
+
+</td>
+<td>
+
+- [ ] Integrate memory with planning
+
+
+- [ ] Implement Synthesis Agent
+
+
+- [ ] Implement persistent memory
+
+
+- [ ] Build news retrieval tool
+
+
+- [ ] Build prompt chaining news workflow (ingest to summarize)
+
+
+- [ ] Additional Person 3 task(s) hidden in screenshot
+
+</td>
+</tr>
+<tr>
+<td>
+
+Combined
+
+</td>
+<td>
+
+- [ ] End-to-end demo + learning-across-runs demo
+
+
+- [ ] Configure dependencies & environment
+
+
+- [ ] Full system testing (component, routing, evaluator, memory)
+
+
+- [ ] Define shared LangGraph state schema
+
+
+- [ ] Finalize project scope & MVP definition
+
+
+- [ ] Additional Whole Group task(s) hidden in screenshot
+
+</td>
+</tr>
+</table>
 
 Team members will use issues, branches, pull requests, commits, and code reviews\
 to coordinate work and document individual contributions.
