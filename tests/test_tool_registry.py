@@ -1,4 +1,4 @@
-"""Tests for assembling the agent-facing Yahoo Finance tool registry."""
+"""Tests for assembling the agent-facing tool registry."""
 
 import unittest
 
@@ -25,7 +25,7 @@ class TestToolRegistry(unittest.TestCase):
 
         self.assertEqual(
             list(tools),
-            ["price_data", "company_info", "financials", "cash_flow"],
+            ["price_data", "company_info", "financials", "cash_flow", "news"],
         )
         self.assertEqual(tools["price_data"]("AAPL")["latest_price"], 110.0)
         self.assertEqual(
@@ -39,4 +39,13 @@ class TestToolRegistry(unittest.TestCase):
             tools["cash_flow"]("AAPL"),
             {"Free Cash Flow": {"2025": 80.0}},
         )
+
+    def test_news_tool_returns_sourced_intelligence_shape(self):
+        tools = build_yahoo_tools(FakeYahooFinanceClient())
+
+        result = tools["news"]("AAPL")
+
+        self.assertEqual(result["symbol"], "AAPL")
+        self.assertIn("sources", result)
+        self.assertIn("summary", result)
 
