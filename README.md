@@ -291,19 +291,36 @@ Never commit the populated `.env` file or expose API keys in notebook output.
 ## Usage
 
 [`notebooks/final_project.ipynb`](notebooks/final_project.ipynb) is the canonical\
-project entry point. Start the configured Ollama model, then open the notebook:
+project entry point. There are two ways to run it, pick whichever fits.
+
+### Option A: Google Colab (no local install)
+
+Nothing gets installed on your own machine. Section 2 of the notebook detects\
+it's running in Colab and installs Ollama inside that disposable Colab VM,\
+starts the service, and pulls the configured model automatically.
+
+1. Upload `notebooks/final_project.ipynb` to [colab.research.google.com](https://colab.research.google.com).
+2. Clone the repo or upload the `src/` folder and `requirements.txt` so the\
+   notebook can `import src...`. A quick way: add a cell at the top with\
+   `!git clone <repository-url> && %cd <repo-folder>`.
+3. Run `!pip install -r requirements.txt` in a Colab cell.
+4. Set any needed keys (e.g. `NEWS_API_KEY`) via `.env` or `os.environ` in a cell.
+5. Run the notebook top to bottom. Section 2's setup cell handles Ollama for you.
+
+### Option B: Local Jupyter (Ollama installed on your machine)
 
 ```bash
 ollama serve
 jupyter lab notebooks/final_project.ipynb
 ```
 
-Run the notebook from top to bottom. The setup section only constructs the\
-workflow; Section 9 performs the live seven-stage run, displays its structured\
+Run the notebook from top to bottom either way. The setup section only constructs\
+the workflow; Section 9 performs the live seven-stage run, displays its structured\
 artifacts, and renders the final report. Set `DEFAULT_TICKER` and `OLLAMA_MODEL`\
 in `.env` to change the defaults.
 
-The same extracted workflow also has an optional terminal interface:
+The same extracted workflow also has an optional terminal interface (local only,\
+requires Ollama running on the same machine):
 
 ```bash
 python -m src.cli
