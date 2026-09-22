@@ -196,7 +196,6 @@ multi-agent-financial-analysis/
 ├── src/
 │   ├── __init__.py
 │   ├── state.py
-│   ├── graph.py
 │   ├── cli.py
 │   ├── llm/
 │   │   ├── __init__.py
@@ -239,6 +238,8 @@ multi-agent-financial-analysis/
 │   ├── reporting/
 │   │   └── console.py
 │   ├── workflows/
+│   │   ├── __init__.py
+│   │   ├── research_workflow.py
 │   │   └── news_pipeline.py
 │   └── memory/
 │       ├── curator.py

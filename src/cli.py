@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from src.graph import build_research_workflow
 from src.reporting import render_console_summary
+from src.workflows import build_research_workflow
 
 
 def main() -> None:

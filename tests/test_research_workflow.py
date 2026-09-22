@@ -5,8 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.graph import build_research_workflow
 from src.memory import ResearchMemoryStore
+from src.workflows import build_research_workflow
 
 
 class StubLlm:
