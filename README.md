@@ -238,7 +238,8 @@ multi-agent-financial-analysis/
 │   └── memory/
 │       └── memory_store.py
 ├── data/
-│   └── memory.json
+│   └── memory/
+│       └── research_memory.json  # Runtime file, ignored by Git
 └── tests/
 ```
 
