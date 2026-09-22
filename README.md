@@ -197,9 +197,11 @@ multi-agent-financial-analysis/
 │   ├── __init__.py
 │   ├── state.py
 │   ├── graph.py
+│   ├── cli.py
 │   ├── llm/
 │   │   ├── __init__.py
-│   │   └── ollama.py
+│   │   ├── ollama.py
+│   │   └── parsing.py
 │   ├── agents/
 │   │   ├── planner.py
 │   │   ├── router.py
@@ -229,13 +231,17 @@ multi-agent-financial-analysis/
 │   │       ├── __init__.py
 │   │       └── client.py
 │   ├── tools/
+│   │   ├── executor.py
 │   │   ├── market_tools.py
 │   │   ├── financial_tools.py
 │   │   ├── registry.py
 │   │   └── news_tools.py
+│   ├── reporting/
+│   │   └── console.py
 │   ├── workflows/
 │   │   └── news_pipeline.py
 │   └── memory/
+│       ├── curator.py
 │       └── memory_store.py
 ├── data/
 │   └── memory/
@@ -284,17 +290,24 @@ Never commit the populated `.env` file or expose API keys in notebook output.
 
 ## Usage
 
-The primary demonstration will be provided in the project notebook. After the\
-dependencies and credentials are configured, start Jupyter and run the notebook\
-from top to bottom:
+[`notebooks/final_project.ipynb`](notebooks/final_project.ipynb) is the canonical\
+project entry point. Start the configured Ollama model, then open the notebook:
 
 ```bash
-jupyter lab
+ollama serve
+jupyter lab notebooks/final_project.ipynb
 ```
 
-The notebook will accept a stock symbol, execute the three required workflows,\
-display intermediate agent outputs, and generate an evaluated final report.\
-Concrete commands and examples will be added as the implementation is completed.
+Run the notebook from top to bottom. The setup section only constructs the\
+workflow; Section 9 performs the live seven-stage run, displays its structured\
+artifacts, and renders the final report. Set `DEFAULT_TICKER` and `OLLAMA_MODEL`\
+in `.env` to change the defaults.
+
+The same extracted workflow also has an optional terminal interface:
+
+```bash
+python -m src.cli
+```
 
 ### Testing
 
