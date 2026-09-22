@@ -8,12 +8,10 @@ the project notebook.
 
 from __future__ import annotations
 
-import json
-import os
 import re
 from typing import Any
 
-from openai import OpenAI
+from src.llm import ask_llm, parse_json_object
 
 NEWS_CATEGORIES = ["EARNINGS", "PRODUCT", "REGULATORY", "MARKET", "LEGAL", "OTHER"]
 
@@ -21,33 +19,18 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 
-def _client() -> OpenAI:
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-
-def _model() -> str:
-    return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
-
 def _chat_json(system_prompt: str, user_prompt: str) -> dict[str, Any]:
-    """Call the LLM and parse a JSON object response.
+    """Call the local LLM (Ollama) and parse a JSON object out of its response.
 
-    Returns an empty dict if the API key is missing or the call fails, so a
+    Returns an empty dict if Ollama isn't running or the call fails, so a
     single article's failure does not stop the rest of the pipeline.
     """
+    prompt = f"{system_prompt}\n\n{user_prompt}"
     try:
-        response = _client().chat.completions.create(
-            model=_model(),
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0,
-        )
-        return json.loads(response.choices[0].message.content)
+        response = ask_llm(prompt)
     except Exception:  # noqa: BLE001 - a single stage failure should not stop the pipeline
         return {}
+    return parse_json_object(response, fallback={})
 
 
 def ingest(articles: list[dict[str, Any]], max_articles: int = 10) -> list[dict[str, Any]]:

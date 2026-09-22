@@ -38,7 +38,7 @@ def _get_client() -> NewsApiClient:
 )
 def _fetch_everything(client: NewsApiClient, query: str, from_date: str, page_size: int) -> dict[str, Any]:
     return client.get_everything(
-        q=query,
+        qintitle=query,
         from_param=from_date,
         language="en",
         sort_by="publishedAt",
@@ -59,8 +59,12 @@ def fetch_company_articles(
     client = _get_client()
     from_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
 
+    # Quote the phrase so NewsAPI requires an exact match instead of matching
+    # any article that mentions the word anywhere (e.g. "apple" the fruit).
+    query = f'"{company_name}"'
+
     try:
-        response = _fetch_everything(client, company_name, from_date, page_size)
+        response = _fetch_everything(client, query, from_date, page_size)
     except Exception as exc:  # NewsAPI raises plain exceptions/newsapi.NewsAPIException
         raise NewsApiError(f"NewsAPI request failed for '{company_name}': {exc}") from exc
 
