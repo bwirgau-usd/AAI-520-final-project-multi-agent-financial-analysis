@@ -231,6 +231,7 @@ multi-agent-financial-analysis/
 │   ├── tools/
 │   │   ├── market_tools.py
 │   │   ├── financial_tools.py
+│   │   ├── registry.py
 │   │   └── news_tools.py
 │   ├── workflows/
 │   │   └── news_pipeline.py
