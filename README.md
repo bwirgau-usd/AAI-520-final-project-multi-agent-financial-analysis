@@ -266,6 +266,13 @@ On Windows PowerShell, activate the environment with:
 .venv\Scripts\Activate.ps1
 ```
 
+### Ollama Installation
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2:latest
+```
+
 ### Configuration
 
 When `.env.example` is available, copy it to `.env` and add the required API\
