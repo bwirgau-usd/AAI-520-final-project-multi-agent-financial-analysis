@@ -102,8 +102,8 @@ flowchart LR
 ### Specialist Agents
 
 - **News Analyst:** identifies sentiment, catalysts, risks, and material events.
-- **Earnings Analyst:** examines revenue, profitability, guidance, and earnings\
-  trends.
+- **Financial Agent:** examines revenue and earnings growth, EPS, margins, P/E,\
+  cash, debt, and balance-sheet trends.
 - **Market Analyst:** evaluates price behavior, volatility, volume, and market\
   context.
 - **Filings Analyst:** extracts relevant facts and risk disclosures from company\
@@ -165,7 +165,7 @@ to agent or analysis logic.
 
 | Source                   | Status     | Intended use                                          |
 | ------------------------ | ---------- | ----------------------------------------------------- |
-| Yahoo Finance / `yfinance` | Initial    | Prices, company information, and financial statements |
+| Yahoo Finance / `yfinance` | Initial    | Prices, company information, financial statements, and valuation measures |
 | SEC EDGAR                | Scaffolded | Company filings and regulatory disclosures            |
 | FRED                     | Scaffolded | Macroeconomic indicators                              |
 | NewsAPI                  | Scaffolded | Current and historical company news                   |

@@ -52,6 +52,8 @@ class FakeStatement:
 class FakeTicker:
     def __init__(self):
         self.history_periods = []
+        self.balance_sheet_calls = []
+        self.valuation_calls = []
         self.info = {"longName": "Example Corp", "marketCap": 1000}
         self.income_stmt = FakeStatement(
             {"Total Revenue": {"2025": 500, "2024": math.nan}}
@@ -59,10 +61,30 @@ class FakeTicker:
         self.cashflow = FakeStatement(
             {"Free Cash Flow": {"2025": 125}}
         )
+        self.balance_sheet = FakeStatement(
+            {
+                "Total Assets": {"2025": 900, "2024": 850},
+                "Total Debt": {"2025": math.nan, "2024": 200},
+            }
+        )
+        self.valuation = FakeStatement(
+            {
+                "Market Cap": {"Current": 1_000, "12/31/2025": 950},
+                "Trailing P/E": {"Current": 25, "12/31/2025": math.nan},
+            }
+        )
 
     def history(self, *, period):
         self.history_periods.append(period)
         return FakeHistory([100, None, 110])
+
+    def get_balance_sheet(self, *, pretty, freq):
+        self.balance_sheet_calls.append((pretty, freq))
+        return self.balance_sheet
+
+    def get_valuation_measures(self, *, freq, periods):
+        self.valuation_calls.append((freq, periods))
+        return self.valuation
 
 
 class TestYahooFinanceClient(unittest.TestCase):
@@ -99,7 +121,43 @@ class TestYahooFinanceClient(unittest.TestCase):
         )
         self.assertEqual(cash_flow, {"Free Cash Flow": {"2025": 125.0}})
 
+    def test_retrieves_and_normalizes_balance_sheet(self):
+        balance_sheet = self.client.get_balance_sheet(
+            " aapl ",
+            frequency="quarterly",
+        )
+
+        self.assertEqual(
+            balance_sheet,
+            {
+                "Total Assets": {"2025": 900.0, "2024": 850.0},
+                "Total Debt": {"2025": None, "2024": 200.0},
+            },
+        )
+        self.assertEqual(self.symbols, ["AAPL"])
+        self.assertEqual(self.ticker.balance_sheet_calls, [(True, "quarterly")])
+
+    def test_retrieves_and_normalizes_valuation(self):
+        valuation = self.client.get_valuation(
+            "msft",
+            frequency="yearly",
+            periods=3,
+        )
+
+        self.assertEqual(
+            valuation,
+            {
+                "Market Cap": {"Current": 1_000.0, "12/31/2025": 950.0},
+                "Trailing P/E": {"Current": 25.0, "12/31/2025": None},
+            },
+        )
+        self.assertEqual(self.symbols, ["MSFT"])
+        self.assertEqual(self.ticker.valuation_calls, [("yearly", 3)])
+
     def test_rejects_blank_symbol(self):
         with self.assertRaisesRegex(ValueError, "non-empty"):
             self.client.get_company_info(" ")
 
+
+if __name__ == "__main__":
+    unittest.main()

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from src.reporting import render_console_summary
-from src.workflows import build_research_workflow
+from src.workflows.research_workflow import build_research_workflow
 
 def main() -> None:
     """Prompt for a ticker, run the workflow, and print its report."""
