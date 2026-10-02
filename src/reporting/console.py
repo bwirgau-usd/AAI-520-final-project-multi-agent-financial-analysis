@@ -20,10 +20,15 @@ def render_console_summary(state: ResearchState) -> str:
     financials = _mapping(observations.get("financials"))
     cash_flow = _mapping(observations.get("cash_flow"))
     validation = state.get("validation", [])
+    report_validation = state.get("report_validation", [])
+    reflection = _mapping(state.get("reflection"))
+    plan = _mapping(state.get("plan"))
     period = _latest_period(financials, cash_flow)
     period_label = _period_label(period)
 
-    current_price = price.get("latest_price", info.get("currentPrice"))
+    current_price = price.get("latest_price")
+    if current_price is None:
+        current_price = info.get("currentPrice")
     revenue = _statement_value(financials, "Total Revenue", period)
     operating_income = _statement_value(financials, "Operating Income", period)
     net_income = _statement_value(financials, "Net Income", period)
@@ -54,6 +59,8 @@ def render_console_summary(state: ResearchState) -> str:
         f"   Enterprise Value:    {_large_currency(info.get('enterpriseValue'))}",
         "",
         "2. PRICE PERFORMANCE",
+        f"   Start Price:         {_currency(price.get('start_price'))}",
+        f"   Latest Price:        {_currency(price.get('latest_price'))}",
         f"   One-Year Return:     {_percentage_points(price.get('1y_return_percent'))}",
         (
             "   Annualized Volatility: "
@@ -63,6 +70,7 @@ def render_console_summary(state: ResearchState) -> str:
             "   Maximum Drawdown:    "
             f"{_percentage_points(price.get('maximum_drawdown_percent'))}"
         ),
+        f"   Observations:        {_number(price.get('observations'), 0)}",
         "",
         "3. VALUATION",
         f"   Trailing P/E:        {_number(info.get('trailingPE'))}",
@@ -91,31 +99,103 @@ def render_console_summary(state: ResearchState) -> str:
         "",
         "6. DIVIDEND",
         f"   Dividend Yield:      {_ratio_percent(info.get('dividendYield'))}",
-        "",
-        "7. DATA VALIDATION",
     ]
-    if validation:
-        lines.extend(
-            f"   - {issue.get('field', issue.get('tool', 'general'))}: "
-            f"{issue.get('message', str(issue))}"
-            for issue in validation
-        )
-    else:
-        lines.append("   No validation issues reported.")
 
-    missing = [
-        issue.get("field", issue.get("tool", "unknown"))
+    risk_issues = [
+        _issue_message(issue)
         for issue in validation
-        if issue.get("type") in {"missing_data", "missing_metric"}
+        if isinstance(issue, Mapping)
+        and issue.get("type")
+        in {"consistency", "invalid_scale", "invalid_value", "scale_mismatch"}
     ]
-    lines.extend(["", "8. MISSING INFORMATION"])
-    lines.extend((f"   - {field}" for field in missing) if missing else ["   None"])
+    risks = _unique_text(
+        reflection.get("weaknesses"),
+        reflection.get("suspicious_values"),
+        risk_issues,
+    )
+    lines.extend(["", "7. RISKS AND UNCERTAINTIES"])
+    lines.extend(
+        (f"   - {risk}" for risk in risks)
+        if risks
+        else ["   None identified in the available evidence."]
+    )
+
+    lines.extend(["", "8. DATA QUALITY"])
+    quality_notes = [
+        *(
+            f"Evidence strength: {strength}"
+            for strength in _unique_text(reflection.get("strengths"))
+        ),
+        *(_issue_text(issue) for issue in validation),
+        *(
+            f"Report validation: {_issue_text(issue)}"
+            for issue in report_validation
+        ),
+    ]
+    lines.extend(
+        (f"   - {note}" for note in quality_notes)
+        if quality_notes
+        else ["   No automated validation issues reported."]
+    )
+
+    missing_issues = [
+        _issue_message(issue)
+        for issue in validation
+        if isinstance(issue, Mapping)
+        and issue.get("type") in {"missing_data", "missing_metric"}
+    ]
+    missing = _unique_text(
+        reflection.get("missing_information"),
+        missing_issues,
+    )
+    lines.extend(["", "9. MISSING INFORMATION"])
+    lines.extend(
+        (f"   - {item}" for item in missing) if missing else ["   None"]
+    )
+
+    further_research = _unique_text(
+        reflection.get("follow_up_questions"),
+        plan.get("questions"),
+    )
+    lines.extend(["", "10. FURTHER RESEARCH"])
+    lines.extend(
+        (f"   - {item}" for item in further_research)
+        if further_research
+        else ["   None identified."]
+    )
     lines.extend(["", "=" * 70, "END OF FINAL RESEARCH REPORT", "=" * 70])
     return "\n".join(lines)
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _unique_text(*collections: object) -> list[str]:
+    unique: list[str] = []
+    for collection in collections:
+        if not isinstance(collection, (list, tuple)):
+            continue
+        for item in collection:
+            if not isinstance(item, str):
+                continue
+            normalized = item.strip()
+            if normalized and normalized not in unique:
+                unique.append(normalized)
+    return unique
+
+
+def _issue_message(issue: object) -> str:
+    if not isinstance(issue, Mapping):
+        return str(issue)
+    return str(issue.get("message") or issue.get("field") or "Unknown issue")
+
+
+def _issue_text(issue: object) -> str:
+    if not isinstance(issue, Mapping):
+        return str(issue)
+    field = issue.get("field", issue.get("tool", "general"))
+    return f"{field}: {_issue_message(issue)}"
 
 
 def _latest_period(*statements: Mapping[str, Any]) -> object | None:

@@ -192,7 +192,7 @@ multi-agent-financial-analysis/
 ├── .gitignore
 ├── .env.example
 ├── notebooks/
-│   └── final_project.ipynb
+│   └── mult_agent_financial_analysis_demo.ipynb
 ├── src/
 │   ├── __init__.py
 │   ├── state.py
@@ -236,6 +236,7 @@ multi-agent-financial-analysis/
 │   │   ├── registry.py
 │   │   └── news_tools.py
 │   ├── reporting/
+│   │   ├── charts.py
 │   │   └── console.py
 │   ├── workflows/
 │   │   ├── __init__.py
@@ -298,24 +299,28 @@ Never commit the populated `.env` file or expose API keys in notebook output.
 
 ## Usage
 
-[`notebooks/final_project.ipynb`](notebooks/final_project.ipynb) is the canonical\
-project entry point. Start the configured Ollama model, then open the notebook:
+[`notebooks/mult_agent_financial_analysis_demo.ipynb`](notebooks/mult_agent_financial_analysis_demo.ipynb)\
+is the canonical project entry point. Start the configured Ollama model, then\
+open the notebook:
 
 ```bash
 ollama serve
-jupyter lab notebooks/final_project.ipynb
+jupyter lab notebooks/mult_agent_financial_analysis_demo.ipynb
 ```
 
 Run the notebook from top to bottom. The setup section only constructs the\
 workflow; Section 9 performs the live seven-stage run, displays its structured\
-artifacts, and renders the final report. Set `DEFAULT_TICKER` and `OLLAMA_MODEL`\
-in `.env` to change the defaults.
+artifacts, renders the final report, and displays the 10-year price chart. Set\
+`DEFAULT_TICKER` and `OLLAMA_MODEL` in `.env` to change the defaults.
 
 The same extracted workflow also has an optional terminal interface:
 
 ```bash
 python -m src.cli
 ```
+
+The terminal interface prints the final report and displays a 10-year adjusted
+stock-price chart when Yahoo Finance history is available.
 
 ### Testing
 
