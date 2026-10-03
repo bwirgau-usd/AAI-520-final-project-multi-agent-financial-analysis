@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.tools.financial_tools import get_cash_flow, get_financials
+from src.tools.financial_tools import get_cash_flow, get_financials, get_sec_edgar
 
 
 class FakeFinancialClient:
@@ -32,6 +32,16 @@ class EmptyFinancialClient:
 
     def get_cash_flow_statement(self, symbol):
         return {}
+
+
+class FakeSecClient:
+    def get_company_data(self, symbol):
+        return {
+            "source": "SEC EDGAR",
+            "ticker": symbol,
+            "official_company_facts": {"Assets": {"value": 500.0}},
+            "recent_filings": [],
+        }
 
 
 class TestFinancialTools(unittest.TestCase):
@@ -67,3 +77,13 @@ class TestFinancialTools(unittest.TestCase):
             {"error": "No cash-flow data found"},
         )
 
+    def test_returns_normalized_sec_company_data(self):
+        self.assertEqual(
+            get_sec_edgar(FakeSecClient(), "AAPL"),
+            {
+                "source": "SEC EDGAR",
+                "ticker": "AAPL",
+                "official_company_facts": {"Assets": {"value": 500.0}},
+                "recent_filings": [],
+            },
+        )

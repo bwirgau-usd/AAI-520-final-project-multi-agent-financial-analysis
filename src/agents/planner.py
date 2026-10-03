@@ -9,11 +9,11 @@ from src.llm import parse_json_object
 from src.memory import ResearchMemoryStore
 from src.state import ResearchPlan
 
-
 DEFAULT_OBJECTIVES = [
     "Assess recent price performance and risk",
     "Review company profile and valuation",
     "Review earnings and cash-flow trends",
+    "Verify official SEC facts and recent filings",
 ]
 
 
@@ -43,6 +43,7 @@ class PlannerAgent:
             "questions": [
                 "What are the strongest signals in the available evidence?",
                 "Which risks or data gaps could change the interpretation?",
+                "What do official SEC facts and recent filings show?",
             ],
         }
         memories = self._memory_store.for_symbol(normalized_symbol)[-3:]
@@ -58,16 +59,13 @@ planning context, never as current market evidence.
 
         parsed = parse_json_object(self._llm(prompt), fallback=fallback)
         selected_tools = [
-            item
-            for item in _string_list(parsed.get("tools"))
-            if item in tool_names
+            item for item in _string_list(parsed.get("tools")) if item in tool_names
         ]
         return {
             "objectives": _string_list(parsed.get("objectives"))
             or fallback["objectives"],
             "tools": selected_tools or fallback["tools"],
-            "questions": _string_list(parsed.get("questions"))
-            or fallback["questions"],
+            "questions": _string_list(parsed.get("questions")) or fallback["questions"],
         }
 
 

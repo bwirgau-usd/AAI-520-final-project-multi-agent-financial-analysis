@@ -8,6 +8,6 @@ The rest of the application should access provider data through the modules in
 vendor and allows a provider to be replaced without rewriting the analysis
 logic.
 
-Yahoo Finance is the initial source. SEC EDGAR, FRED, NewsAPI, and Alpha
-Vantage are scaffolded for later integration.
-
+Yahoo Finance supplies market and financial data. SEC EDGAR supplies official
+company facts and recent 10-K, 10-Q, and 8-K filings. FRED, NewsAPI, and Alpha
+Vantage remain scaffolded for later integration.

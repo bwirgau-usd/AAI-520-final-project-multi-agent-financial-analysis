@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.tools.registry import build_yahoo_tools
+from src.tools.registry import build_tools, build_yahoo_tools
 
 
 class FakeYahooFinanceClient:
@@ -19,6 +19,11 @@ class FakeYahooFinanceClient:
         return {"Free Cash Flow": {"2025": 80.0}}
 
 
+class FakeSecEdgarClient:
+    def get_company_data(self, symbol):
+        return {"source": "SEC EDGAR", "ticker": symbol}
+
+
 class TestToolRegistry(unittest.TestCase):
     def test_builds_complete_symbol_only_tool_registry(self):
         tools = build_yahoo_tools(FakeYahooFinanceClient())
@@ -28,9 +33,7 @@ class TestToolRegistry(unittest.TestCase):
             ["price_data", "company_info", "financials", "cash_flow"],
         )
         self.assertEqual(tools["price_data"]("AAPL")["latest_price"], 110.0)
-        self.assertEqual(
-            tools["company_info"]("AAPL")["longName"], "Example Corp"
-        )
+        self.assertEqual(tools["company_info"]("AAPL")["longName"], "Example Corp")
         self.assertEqual(
             tools["financials"]("AAPL"),
             {"Total Revenue": {"2025": 500.0}},
@@ -40,3 +43,20 @@ class TestToolRegistry(unittest.TestCase):
             {"Free Cash Flow": {"2025": 80.0}},
         )
 
+    def test_builds_combined_registry_with_sec_edgar(self):
+        tools = build_tools(FakeYahooFinanceClient(), FakeSecEdgarClient())
+
+        self.assertEqual(
+            list(tools),
+            [
+                "price_data",
+                "company_info",
+                "financials",
+                "cash_flow",
+                "sec_edgar",
+            ],
+        )
+        self.assertEqual(
+            tools["sec_edgar"]("AAPL"),
+            {"source": "SEC EDGAR", "ticker": "AAPL"},
+        )

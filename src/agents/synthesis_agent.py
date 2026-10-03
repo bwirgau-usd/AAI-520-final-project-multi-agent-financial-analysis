@@ -43,8 +43,8 @@ Deterministic validation:
 {json.dumps(validation, default=str)}
 
 Use these headings: Company Overview, Price Performance, Valuation and
-Profitability, Financial Performance, Cash Flow, Dividend, Risks and
-Uncertainties, Data Quality, and Further Research.
+Profitability, Financial Performance, Cash Flow, SEC EDGAR Evidence, Dividend,
+Risks and Uncertainties, Data Quality, and Further Research.
 
 When supplied, include:
 - company name, symbol, sector, industry, country, current price, market
@@ -56,7 +56,10 @@ When supplied, include:
 - revenue, operating income, net income, EBITDA, diluted EPS, and the
   EBITDA/net-income ratio;
 - operating cash flow, free cash flow, capital expenditure, and dividend
-  yield; and
+  yield;
+- SEC entity name, CIK, SIC classification, every supplied official company
+  fact with its period, filing metadata, and recent 10-K, 10-Q, and 8-K links;
+  and
 - validation findings, risks, missing information, and follow-up questions.
 
 Strict rules:

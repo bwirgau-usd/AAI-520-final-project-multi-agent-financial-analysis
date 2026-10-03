@@ -19,6 +19,7 @@ def render_console_summary(state: ResearchState) -> str:
     info = _mapping(observations.get("company_info"))
     financials = _mapping(observations.get("financials"))
     cash_flow = _mapping(observations.get("cash_flow"))
+    sec_edgar = _mapping(observations.get("sec_edgar"))
     validation = state.get("validation", [])
     report_validation = state.get("report_validation", [])
     reflection = _mapping(state.get("reflection"))
@@ -96,10 +97,38 @@ def render_console_summary(state: ResearchState) -> str:
         f"   Operating Cash Flow: {_large_currency(operating_cash)}",
         f"   Free Cash Flow:      {_large_currency(free_cash)}",
         f"   Capital Expenditure: {_large_currency(capital_expenditure)}",
-        "",
-        "6. DIVIDEND",
-        f"   Dividend Yield:      {_ratio_percent(info.get('dividendYield'))}",
     ]
+
+    lines.extend(["", "6. SEC EDGAR EVIDENCE"])
+    if sec_edgar.get("error"):
+        lines.append(f"   Unavailable:          {sec_edgar['error']}")
+    elif sec_edgar:
+        sic = _text(sec_edgar.get("sic"))
+        sic_description = _text(sec_edgar.get("sic_description"))
+        lines.extend(
+            [
+                f"   Source:               {_text(sec_edgar.get('source'))}",
+                f"   Entity:               {_text(sec_edgar.get('entity_name'))}",
+                f"   CIK:                  {_text(sec_edgar.get('cik'))}",
+                f"   SIC:                  {sic} — {sic_description}",
+                "   Official Company Facts:",
+            ]
+        )
+        fact_lines = _sec_fact_lines(_mapping(sec_edgar.get("official_company_facts")))
+        lines.extend(fact_lines or ["      None available"])
+        lines.append("   Recent Filings:")
+        filing_lines = _sec_filing_lines(sec_edgar.get("recent_filings"))
+        lines.extend(filing_lines or ["      None available"])
+    else:
+        lines.append("   No SEC EDGAR evidence collected.")
+
+    lines.extend(
+        [
+            "",
+            "7. DIVIDEND",
+            f"   Dividend Yield:      {_ratio_percent(info.get('dividendYield'))}",
+        ]
+    )
 
     risk_issues = [
         _issue_message(issue)
@@ -113,24 +142,21 @@ def render_console_summary(state: ResearchState) -> str:
         reflection.get("suspicious_values"),
         risk_issues,
     )
-    lines.extend(["", "7. RISKS AND UNCERTAINTIES"])
+    lines.extend(["", "8. RISKS AND UNCERTAINTIES"])
     lines.extend(
         (f"   - {risk}" for risk in risks)
         if risks
         else ["   None identified in the available evidence."]
     )
 
-    lines.extend(["", "8. DATA QUALITY"])
+    lines.extend(["", "9. DATA QUALITY"])
     quality_notes = [
         *(
             f"Evidence strength: {strength}"
             for strength in _unique_text(reflection.get("strengths"))
         ),
         *(_issue_text(issue) for issue in validation),
-        *(
-            f"Report validation: {_issue_text(issue)}"
-            for issue in report_validation
-        ),
+        *(f"Report validation: {_issue_text(issue)}" for issue in report_validation),
     ]
     lines.extend(
         (f"   - {note}" for note in quality_notes)
@@ -148,16 +174,14 @@ def render_console_summary(state: ResearchState) -> str:
         reflection.get("missing_information"),
         missing_issues,
     )
-    lines.extend(["", "9. MISSING INFORMATION"])
-    lines.extend(
-        (f"   - {item}" for item in missing) if missing else ["   None"]
-    )
+    lines.extend(["", "10. MISSING INFORMATION"])
+    lines.extend((f"   - {item}" for item in missing) if missing else ["   None"])
 
     further_research = _unique_text(
         reflection.get("follow_up_questions"),
         plan.get("questions"),
     )
-    lines.extend(["", "10. FURTHER RESEARCH"])
+    lines.extend(["", "11. FURTHER RESEARCH"])
     lines.extend(
         (f"   - {item}" for item in further_research)
         if further_research
@@ -169,6 +193,43 @@ def render_console_summary(state: ResearchState) -> str:
 
 def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _sec_fact_lines(facts: Mapping[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for name, raw_fact in facts.items():
+        fact = _mapping(raw_fact)
+        unit = _text(fact.get("unit"))
+        value = _number(fact.get("value"))
+        metadata = [
+            f"FY {_text(fact.get('fiscal_year'))}",
+            f"period {_text(fact.get('fiscal_period'))}",
+            f"ended {_text(fact.get('period_end'))}",
+            f"filed {_text(fact.get('filed'))}",
+            f"form {_text(fact.get('form'))}",
+            f"accession {_text(fact.get('accession'))}",
+        ]
+        lines.append(f"      {name}: {value} {unit} ({'; '.join(metadata)})")
+    return lines
+
+
+def _sec_filing_lines(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    lines: list[str] = []
+    for raw_filing in value:
+        filing = _mapping(raw_filing)
+        if not filing:
+            continue
+        lines.append(
+            "      - "
+            f"{_text(filing.get('form'))} | "
+            f"filed {_text(filing.get('filing_date'))} | "
+            f"report {_text(filing.get('report_date'))} | "
+            f"accession {_text(filing.get('accession'))} | "
+            f"{_text(filing.get('filing_url'))}"
+        )
+    return lines
 
 
 def _unique_text(*collections: object) -> list[str]:

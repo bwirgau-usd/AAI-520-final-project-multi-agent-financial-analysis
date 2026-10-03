@@ -159,14 +159,14 @@ reached.
 
 ## Data Sources and Tools
 
-Yahoo Finance is the initial ingestion source. Additional providers are kept in\
-separate adapter packages so they can be added without coupling provider APIs\
-to agent or analysis logic.
+Yahoo Finance and SEC EDGAR are the implemented ingestion sources. Additional\
+providers are kept in separate adapter packages so they can be added without\
+coupling provider APIs to agent or analysis logic.
 
 | Source                   | Status     | Intended use                                          |
 | ------------------------ | ---------- | ----------------------------------------------------- |
 | Yahoo Finance / `yfinance` | Initial    | Prices, company information, and financial statements |
-| SEC EDGAR                | Scaffolded | Company filings and regulatory disclosures            |
+| SEC EDGAR                | Integrated | Official company facts and recent 10-K/10-Q/8-K filings |
 | FRED                     | Scaffolded | Macroeconomic indicators                              |
 | NewsAPI                  | Scaffolded | Current and historical company news                   |
 | Alpha Vantage            | Scaffolded | Supplemental market and fundamental data              |
@@ -180,6 +180,10 @@ back between sources later.
 All external information used in a report should retain its source and retrieval\
 date. API credentials must be stored in environment variables and must not be\
 committed to the repository.
+
+SEC requests must identify the application. Set `SEC_USER_AGENT` in `.env` to a
+descriptive value containing a monitored contact email, as shown in
+`.env.example`.
 
 ## Repository Structure
 

@@ -27,9 +27,7 @@ class TestConsoleReporting(unittest.TestCase):
                             "2024-09-30": 1_800_000_000,
                         }
                     },
-                    "cash_flow": {
-                        "Free Cash Flow": {"2025-09-30": 500_000_000}
-                    },
+                    "cash_flow": {"Free Cash Flow": {"2025-09-30": 500_000_000}},
                 },
                 "reflection": {
                     "strengths": [],
@@ -100,11 +98,38 @@ class TestConsoleReporting(unittest.TestCase):
                         "Diluted EPS": {"2026-01-31": 4.9},
                     },
                     "cash_flow": {
-                        "Operating Cash Flow": {
-                            "2026-01-31": 102_718_000_000
-                        },
+                        "Operating Cash Flow": {"2026-01-31": 102_718_000_000},
                         "Free Cash Flow": {"2026-01-31": 96_676_000_000},
                         "Capital Expenditure": {"2026-01-31": -6_042_000_000},
+                    },
+                    "sec_edgar": {
+                        "source": "SEC EDGAR",
+                        "ticker": "NVDA",
+                        "cik": "0001045810",
+                        "entity_name": "NVIDIA CORP",
+                        "sic": "3674",
+                        "sic_description": "Semiconductors",
+                        "official_company_facts": {
+                            "Assets": {
+                                "value": 140_000_000_000,
+                                "unit": "USD",
+                                "fiscal_year": 2026,
+                                "fiscal_period": "FY",
+                                "form": "10-K",
+                                "period_end": "2026-01-31",
+                                "filed": "2026-02-25",
+                                "accession": "0001045810-26-000001",
+                            }
+                        },
+                        "recent_filings": [
+                            {
+                                "form": "10-K",
+                                "filing_date": "2026-02-25",
+                                "report_date": "2026-01-31",
+                                "accession": "0001045810-26-000001",
+                                "filing_url": "https://www.sec.gov/example",
+                            }
+                        ],
                     },
                 },
                 "reflection": {
@@ -162,17 +187,28 @@ class TestConsoleReporting(unittest.TestCase):
             "Operating Cash Flow: $102.718B",
             "Free Cash Flow:      $96.676B",
             "Capital Expenditure: $-6.042B",
+            "6. SEC EDGAR EVIDENCE",
+            "Source:               SEC EDGAR",
+            "Entity:               NVIDIA CORP",
+            "CIK:                  0001045810",
+            "SIC:                  3674 — Semiconductors",
+            "Assets: 140,000,000,000.00 USD",
+            "FY 2026; period FY; ended 2026-01-31",
+            "filed 2026-02-25; form 10-K",
+            "accession 0001045810-26-000001",
+            "10-K | filed 2026-02-25 | report 2026-01-31",
+            "https://www.sec.gov/example",
             "Dividend Yield:      0.03%",
-            "7. RISKS AND UNCERTAINTIES",
+            "8. RISKS AND UNCERTAINTIES",
             "No news evidence",
             "Verify capital expenditure",
-            "8. DATA QUALITY",
+            "9. DATA QUALITY",
             "Current market and financial data",
             "Recent news was not supplied.",
             "Risk discussion needs review.",
-            "9. MISSING INFORMATION",
+            "10. MISSING INFORMATION",
             "Recent company news",
-            "10. FURTHER RESEARCH",
+            "11. FURTHER RESEARCH",
             "What explains the valuation?",
             "What could change the interpretation?",
         )
