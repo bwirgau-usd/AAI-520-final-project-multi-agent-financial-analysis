@@ -55,3 +55,23 @@ class TestMarketTools(unittest.TestCase):
         self.assertEqual(result["marketCap"], 1000)
         self.assertNotIn("unrequested", result)
         self.assertIn("dividendYield", result)
+
+    def test_calculates_period_range_and_volume_metrics(self):
+        class RichMarketClient(FakeMarketClient):
+            def get_market_history(self, symbol, period="1y"):
+                close = [float(value) for value in range(100, 171)]
+                return {
+                    "close": close,
+                    "high": [value + 2 for value in close],
+                    "low": [value - 3 for value in close],
+                    "volume": [1_000 + value for value in range(len(close))],
+                }
+
+        result = get_price_data(RichMarketClient([]), "AAPL")
+
+        self.assertEqual(result["1m_return_percent"], 14.09)
+        self.assertEqual(result["3m_return_percent"], 58.88)
+        self.assertEqual(result["52_week_high"], 172.0)
+        self.assertEqual(result["52_week_low"], 97.0)
+        self.assertEqual(result["latest_volume"], 1070.0)
+        self.assertEqual(result["average_volume"], 1035.0)

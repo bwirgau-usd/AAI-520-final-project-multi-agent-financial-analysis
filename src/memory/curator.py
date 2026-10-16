@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from src.state import Reflection
 
@@ -14,7 +15,14 @@ class MemoryCurator:
     def __init__(self, llm: Callable[[str], str]) -> None:
         self._llm = llm
 
-    def summarize(self, symbol: str, report: str, reflection: Reflection) -> str:
+    def summarize(
+        self,
+        symbol: str,
+        report: str,
+        reflection: Reflection,
+        report_evaluation: Mapping[str, Any] | None = None,
+        research_request: str = "",
+    ) -> str:
         """Return a short note suitable for the persistent memory store."""
 
         prompt = f"""
@@ -22,8 +30,14 @@ Summarize reusable research lessons from this {symbol} run in at most 120 words.
 Focus on evidence coverage, data-quality problems, and improvements for a future
 run. Do not present time-sensitive values as permanent facts.
 
+Research request:
+{research_request}
+
 Reflection:
 {json.dumps(reflection, default=str)}
+
+Complete-report evaluation:
+{json.dumps(report_evaluation or {}, default=str)}
 
 Report:
 {report}

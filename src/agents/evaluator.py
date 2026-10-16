@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from collections.abc import Callable, Mapping
 from numbers import Number
 from typing import Any
@@ -340,6 +341,98 @@ missing_information, suspicious_values, and follow_up_questions.
                 }
             )
         return issues
+
+    def evaluate_report(
+        self,
+        report: str,
+        observations: Mapping[str, Any],
+        research_request: str,
+        route: str,
+        *,
+        threshold: float = 75,
+    ) -> dict[str, Any]:
+        """Score the complete report with a transparent six-part rubric."""
+
+        report_issues = self.validate_report(report, observations)
+        text = report.lower()
+        requested_domains = (
+            [route] if route in {"market", "financial", "news"} else ["market", "financial", "news"]
+        )
+        domain_terms = {
+            "market": ("price", "return", "volatility", "volume", "drawdown"),
+            "financial": ("revenue", "income", "cash flow", "debt", "sec"),
+            "news": ("news", "catalyst", "headline", "sentiment", "event"),
+        }
+        covered = sum(
+            any(term in text for term in domain_terms[domain])
+            for domain in requested_domains
+        )
+        completeness = round(100 * covered / max(len(requested_domains), 1))
+
+        number_count = len(re.findall(r"(?<!\w)[+-]?\d+(?:\.\d+)?%?", report))
+        evidence_terms = sum(
+            term in text
+            for term in ("observation", "reported", "according", "evidence", "source")
+        )
+        grounding = min(100, number_count * 10 + evidence_terms * 15)
+
+        reasoning_markers = sum(
+            marker in text
+            for marker in (
+                "because",
+                "therefore",
+                "suggests",
+                "indicates",
+                "however",
+                "while",
+                "risk",
+                "uncertainty",
+            )
+        )
+        reasoning = min(100, reasoning_markers * 15)
+        consistency = max(0, 100 - 25 * len(report_issues))
+
+        source_markers = sum(
+            marker in text
+            for marker in (
+                "yahoo",
+                "sec",
+                "newsapi",
+                "google news",
+                "http://",
+                "https://",
+                "source",
+            )
+        )
+        sources = min(100, source_markers * 20)
+        headings = len(re.findall(r"(?m)^#{1,6}\s+", report))
+        clarity = min(100, (40 if len(report.split()) >= 80 else 20) + headings * 15)
+
+        criteria = {
+            "completeness": float(completeness),
+            "grounding": float(grounding),
+            "reasoning": float(reasoning),
+            "consistency": float(consistency),
+            "sources": float(sources),
+            "clarity": float(clarity),
+        }
+        score = round(sum(criteria.values()) / len(criteria), 2)
+        feedback = [
+            f"Improve {name.replace('_', ' ')}; current score is {value:.0f}/100."
+            for name, value in criteria.items()
+            if value < 75
+        ]
+        if research_request.lower() not in text and research_request.strip():
+            feedback.append("Answer the user's research request explicitly.")
+        feedback.extend(str(issue.get("message", "")) for issue in report_issues)
+        return {
+            "score": score,
+            "passed": score >= threshold and not report_issues,
+            "threshold": threshold,
+            "criteria": criteria,
+            "feedback": [item for item in feedback if item],
+            "validation_issues": report_issues,
+        }
 
     @staticmethod
     def _validate_price_data(

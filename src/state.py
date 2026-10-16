@@ -5,12 +5,16 @@ from __future__ import annotations
 from typing import Any, TypedDict
 
 
-class ResearchPlan(TypedDict):
+class ResearchPlan(TypedDict, total=False):
     """Planner output that controls which tools the workflow executes."""
 
     objectives: list[str]
     tools: list[str]
     questions: list[str]
+    research_request: str
+    route: str
+    specialists: list[str]
+    memory_context: list[dict[str, Any]]
 
 
 class ValidationIssue(TypedDict, total=False):
@@ -38,11 +42,23 @@ class ResearchState(TypedDict, total=False):
     """Artifacts produced during one end-to-end research run."""
 
     symbol: str
+    research_request: str
+    remember: bool
+    request_route: str
+    selected_specialists: list[str]
     plan: ResearchPlan
     observations: dict[str, Any]
+    specialist_analyses: dict[str, Any]
     news_analysis: dict[str, Any]
     validation: list[ValidationIssue]
     reflection: Reflection
     report: str
+    draft_report: str
     report_validation: list[ValidationIssue]
+    report_evaluation: dict[str, Any]
+    report_evaluation_history: list[dict[str, Any]]
+    report_revision_history: list[dict[str, Any]]
+    report_revision_count: int
+    max_report_revisions: int
+    graph_trace: list[str]
     memory_entry: dict[str, Any]

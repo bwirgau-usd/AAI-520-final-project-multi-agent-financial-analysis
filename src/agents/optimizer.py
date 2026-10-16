@@ -97,6 +97,43 @@ uncertainty, predict stock prices, or recommend buy, sell, or hold.
             or _string_list(evaluation.get("feedback")),
         }
 
+    def optimize_report(
+        self,
+        symbol: str,
+        research_request: str,
+        report: str,
+        evaluation: Mapping[str, Any],
+        observations: Mapping[str, Any],
+        specialist_analyses: Mapping[str, Any],
+    ) -> str:
+        """Revise a complete report from report-level evaluator feedback."""
+
+        prompt = f"""
+Revise this complete {symbol} research report so it directly answers the
+user's request and addresses the evaluator feedback.
+
+User research request:
+{research_request}
+
+Current report:
+{report}
+
+Report evaluation:
+{json.dumps(evaluation, default=str)}
+
+Grounding observations:
+{json.dumps(observations, default=str)}
+
+Specialist analyses:
+{json.dumps(specialist_analyses, default=str)}
+
+Return only the revised Markdown report. Preserve valid content and source
+attribution. Use only supplied evidence, state uncertainty, and do not add
+personalized investment advice or buy/sell/hold language.
+""".strip()
+        revised = self._llm(prompt).strip()
+        return revised or report
+
 
 def _string(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""

@@ -28,6 +28,8 @@ COMPANY_INFO_FIELDS = (
     "returnOnEquity",
     "beta",
     "dividendYield",
+    "totalCash",
+    "totalDebt",
 )
 
 
@@ -46,9 +48,16 @@ def get_price_data(
     symbol: str,
     period: str = "1y",
 ) -> dict[str, Any]:
-    """Calculate return, volatility, and drawdown from closing prices."""
+    """Calculate performance, risk, range, and trading-volume metrics."""
 
-    close = [float(value) for value in client.get_history(symbol, period)]
+    get_market_history = getattr(client, "get_market_history", None)
+    history = get_market_history(symbol, period) if callable(get_market_history) else {}
+    raw_close = (
+        history.get("close", [])
+        if callable(get_market_history) and isinstance(history, Mapping)
+        else client.get_history(symbol, period)
+    )
+    close = [float(value) for value in raw_close]
     if not close:
         return {"error": f"No price data found for {symbol}"}
     if close[0] == 0:
@@ -77,12 +86,46 @@ def get_price_data(
         "start_price": round(start_price, 2),
         "latest_price": round(latest_price, 2),
         "1y_return_percent": round(total_return, 2),
+        "1m_return_percent": _period_return(close, 21),
+        "3m_return_percent": _period_return(close, 63),
         "annualized_volatility_percent": (
             round(volatility, 2) if volatility is not None else None
         ),
         "maximum_drawdown_percent": round(min(drawdowns), 2),
+        "52_week_high": _series_extreme(history, "high", max, close),
+        "52_week_low": _series_extreme(history, "low", min, close),
+        "latest_volume": _latest_series_value(history, "volume"),
+        "average_volume": _average_series_value(history, "volume"),
         "observations": len(close),
     }
+
+
+def _period_return(close: Sequence[float], trading_days: int) -> float | None:
+    if len(close) <= trading_days or close[-(trading_days + 1)] == 0:
+        return None
+    value = (close[-1] / close[-(trading_days + 1)] - 1) * 100
+    return round(value, 2)
+
+
+def _series_extreme(
+    history: object,
+    field: str,
+    operation: Any,
+    fallback: Sequence[float],
+) -> float | None:
+    values = history.get(field, []) if isinstance(history, Mapping) else []
+    candidates = [float(value) for value in values] or list(fallback)
+    return round(float(operation(candidates)), 2) if candidates else None
+
+
+def _latest_series_value(history: object, field: str) -> float | None:
+    values = history.get(field, []) if isinstance(history, Mapping) else []
+    return round(float(values[-1]), 2) if values else None
+
+
+def _average_series_value(history: object, field: str) -> float | None:
+    values = history.get(field, []) if isinstance(history, Mapping) else []
+    return round(statistics.fmean(float(value) for value in values), 2) if values else None
 
 
 def get_company_info(

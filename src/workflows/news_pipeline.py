@@ -21,11 +21,11 @@ from src.tools.news_tools import (
     GoogleNewsDataClient,
     NewsApiDataClient,
     YahooNewsClient,
-    classify_article,
-    extract_information,
     ingest_news,
     preprocess_article,
-    summarize_article,
+    prompt_classify_article,
+    prompt_extract_information,
+    prompt_summarize_article,
 )
 
 ProgressCallback = Callable[[str], None]
@@ -45,10 +45,12 @@ class NewsPipeline:
     max_articles: int = 8
     evaluation_threshold: float = 75
     max_optimizer_iterations: int = 3
+    prompt_llm: LlmCallable = ask_llm
 
     def analyze(
         self,
         symbol: str,
+        research_request: str = "",
         *,
         progress: ProgressCallback | None = None,
     ) -> dict[str, Any]:
@@ -72,14 +74,22 @@ class NewsPipeline:
         for index, raw_article in enumerate(raw_articles, start=1):
             emit(f"Processing news article {index}/{len(raw_articles)}")
             article = preprocess_article(raw_article)
-            article = classify_article(article)
-            article = extract_information(article)
-            article = summarize_article(article)
+            article = prompt_classify_article(
+                article,
+                self.prompt_llm,
+                research_request,
+            )
+            article = prompt_extract_information(article, self.prompt_llm)
+            article = prompt_summarize_article(article, self.prompt_llm)
             article = self.router.route(article)
 
             fallback = article["specialist_analysis"]
             try:
-                initial_analysis = self.analyst.analyze(article, fallback)
+                initial_analysis = self.analyst.analyze(
+                    article,
+                    fallback,
+                    research_request,
+                )
             except Exception as exc:  # noqa: BLE001 - isolate an article/model failure
                 initial_analysis = {
                     **fallback,
@@ -220,6 +230,7 @@ def build_news_pipeline(
             if max_optimizer_iterations is not None
             else _int_env("MAX_OPTIMIZER_ITERATIONS", 3)
         ),
+        prompt_llm=llm,
     )
 
 

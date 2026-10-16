@@ -35,6 +35,26 @@ class YahooFinanceClient:
         close = history["Close"].dropna()
         return [float(value) for value in close]
 
+    def get_market_history(
+        self,
+        symbol: str,
+        period: str = "1y",
+    ) -> dict[str, list[float]]:
+        """Return aligned close, high, low, and volume series."""
+
+        history = self._ticker(symbol).history(period=period)
+        if history is None or getattr(history, "empty", False):
+            return {}
+
+        result: dict[str, list[float]] = {}
+        for field in ("Close", "High", "Low", "Volume"):
+            if field not in history:
+                continue
+            result[field.lower()] = [
+                float(value) for value in history[field].dropna()
+            ]
+        return result
+
     def get_price_history(
         self,
         symbol: str,
@@ -75,6 +95,11 @@ class YahooFinanceClient:
         """Return a cash-flow statement as nested plain dictionaries."""
 
         return self._normalize_statement(self._ticker(symbol).cashflow)
+
+    def get_balance_sheet(self, symbol: str) -> Statement:
+        """Return a balance sheet as nested plain dictionaries."""
+
+        return self._normalize_statement(self._ticker(symbol).balance_sheet)
 
     def get_news(
         self,

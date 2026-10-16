@@ -80,8 +80,10 @@ class TestReportDiagrams(unittest.TestCase):
 
         labels = {text.get_text() for text in figure.axes[0].texts}
         self.assertIn("Planner", labels)
-        self.assertIn("News\nPrompt Chain", labels)
-        self.assertIn("Evaluator /\nOptimizer", labels)
+        self.assertIn("Request\nRouter", labels)
+        self.assertIn("News Prompt Chain\n+ Specialists", labels)
+        self.assertIn("Report\nEvaluator", labels)
+        self.assertIn("Report\nOptimizer", labels)
         self.assertIn("Final Report\n+ Visuals", labels)
 
     def test_news_workflow_contains_required_patterns(self):

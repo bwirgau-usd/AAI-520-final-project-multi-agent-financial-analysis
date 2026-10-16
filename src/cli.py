@@ -15,8 +15,11 @@ def main() -> None:
     """Prompt for a ticker, run the workflow, and print its report."""
 
     symbol = input("Stock symbol: ").strip()
+    research_request = input(
+        "Research question (leave blank for a comprehensive report): "
+    ).strip()
     workflow = build_research_workflow()
-    result = workflow.run(symbol, progress=print)
+    result = workflow.run(symbol, research_request or None, progress=print)
     print()
     print(render_console_summary(result))
     print()

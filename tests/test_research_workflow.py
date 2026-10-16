@@ -60,6 +60,7 @@ class TestResearchWorkflow(unittest.TestCase):
                 llm=llm,
                 tools=tools,
                 memory_store=store,
+                max_report_revisions=0,
             )
 
             result = workflow.run(" aapl ", progress=progress.append)
@@ -74,8 +75,12 @@ class TestResearchWorkflow(unittest.TestCase):
             self.assertIn("Report", result["report"])
             self.assertEqual(result["memory_entry"]["symbol"], "AAPL")
             self.assertEqual(len(store.for_symbol("aapl")), 1)
-            self.assertTrue(progress[0].startswith("1/7"))
-            self.assertTrue(progress[-1].startswith("7/7"))
+            self.assertEqual(progress[0], "Planning and routing the research request")
+            self.assertEqual(
+                progress[-1],
+                "Saving evaluator feedback for a future run",
+            )
+            self.assertIn("comprehensive_research", result["graph_trace"])
             self.assertEqual(len(llm.prompts), 4)
 
     def test_can_skip_memory_persistence(self):
@@ -86,6 +91,7 @@ class TestResearchWorkflow(unittest.TestCase):
                 llm=llm,
                 tools={"price_data": lambda _symbol: {}},
                 memory_store=store,
+                max_report_revisions=0,
             )
 
             result = workflow.run("MSFT", remember=False)

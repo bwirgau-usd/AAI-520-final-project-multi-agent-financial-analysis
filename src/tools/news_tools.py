@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timezone
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -13,6 +13,7 @@ from src.data_sources.news_api.client import (
     NewsApiError,
     fetch_company_articles,
 )
+from src.llm import parse_json_object
 
 EARNINGS_KEYWORDS = (
     "earnings",
@@ -279,6 +280,120 @@ def summarize_article(article: Mapping[str, Any]) -> NewsArticle:
         "source": str(article.get("source") or "Unknown"),
     }
     return result
+
+
+def prompt_classify_article(
+    article: Mapping[str, Any],
+    llm: Callable[[str], str],
+    research_request: str = "",
+) -> NewsArticle:
+    """Classify with a model prompt and retain a deterministic fallback."""
+
+    fallback = classify_article(article)
+    scores = fallback.get("classification_scores", {})
+    total = sum(scores.values()) if isinstance(scores, Mapping) else 0
+    best = max(scores.values(), default=0) if isinstance(scores, Mapping) else 0
+    fallback_confidence = round(best / total, 3) if total else 0.0
+    prompt = f"""
+Classify this financial article as exactly one of earnings, market, or news.
+Return only JSON with category and confidence (a number from 0 to 1).
+The user's research request is: {research_request or 'general company research'}
+Article evidence: {str(article.get('raw_text') or '')[:4000]}
+""".strip()
+    try:
+        parsed = parse_json_object(llm(prompt), fallback={})
+    except Exception:  # noqa: BLE001 - deterministic fallback is intentional
+        parsed = {}
+    category = str(parsed.get("category") or fallback.get("category") or "news").lower()
+    if category not in {"earnings", "market", "news"}:
+        category = str(fallback.get("category") or "news")
+    confidence = _bounded_confidence(parsed.get("confidence"), fallback_confidence)
+    result: NewsArticle = dict(fallback)
+    result["category"] = category
+    result["classification_confidence"] = confidence
+    return result
+
+
+def prompt_extract_information(
+    article: Mapping[str, Any],
+    llm: Callable[[str], str],
+) -> NewsArticle:
+    """Extract structured entities, dates, sentiment, events, and figures."""
+
+    fallback = extract_information(article)
+    fallback_fields = fallback.get("extracted", {})
+    prompt = f"""
+Extract only facts present in this financial article. Return only JSON with
+company (string or null), event (string or null), event_dates (string array),
+sentiment (positive, neutral, negative, or mixed), financial_numbers (string
+array), events (string array), and keywords (string array).
+Article evidence: {str(article.get('raw_text') or '')[:5000]}
+""".strip()
+    try:
+        parsed = parse_json_object(llm(prompt), fallback={})
+    except Exception:  # noqa: BLE001 - deterministic fallback is intentional
+        parsed = {}
+    sentiment = str(parsed.get("sentiment") or "neutral").lower()
+    if sentiment not in {"positive", "neutral", "negative", "mixed"}:
+        sentiment = "neutral"
+    extracted = {
+        "company": _optional_string(parsed.get("company")),
+        "event": _optional_string(parsed.get("event")),
+        "event_dates": _string_values(parsed.get("event_dates")),
+        "sentiment": sentiment,
+        "financial_numbers": _string_values(parsed.get("financial_numbers"))
+        or _string_values(fallback_fields.get("financial_numbers")),
+        "events": _string_values(parsed.get("events"))
+        or _string_values(fallback_fields.get("events")),
+        "keywords": _string_values(parsed.get("keywords"))
+        or _string_values(fallback_fields.get("keywords")),
+    }
+    result: NewsArticle = dict(article)
+    result["extracted"] = extracted
+    return result
+
+
+def prompt_summarize_article(
+    article: Mapping[str, Any],
+    llm: Callable[[str], str],
+) -> NewsArticle:
+    """Generate a grounded article summary for downstream specialists."""
+
+    fallback = summarize_article(article)
+    prompt = f"""
+Summarize the supplied financial article in two grounded sentences. Return
+only JSON with summary. Do not add outside facts or investment advice.
+Structured extraction: {article.get('extracted', {})}
+Article evidence: {str(article.get('raw_text') or '')[:5000]}
+""".strip()
+    try:
+        parsed = parse_json_object(llm(prompt), fallback={})
+    except Exception:  # noqa: BLE001 - deterministic fallback is intentional
+        parsed = {}
+    summary_output = dict(fallback.get("summary_output", {}))
+    summary_output["narrative"] = str(parsed.get("summary") or "").strip()
+    result: NewsArticle = dict(fallback)
+    result["summary_output"] = summary_output
+    return result
+
+
+def _bounded_confidence(value: object, fallback: float) -> float:
+    try:
+        confidence = float(value)
+    except (TypeError, ValueError):
+        confidence = fallback
+    return max(0.0, min(confidence, 1.0))
+
+
+def _optional_string(value: object) -> str | None:
+    text = str(value).strip() if value is not None else ""
+    return text or None
+
+
+def _string_values(value: object) -> list[str]:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def normalize_text(text: object) -> str:

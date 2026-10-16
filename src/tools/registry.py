@@ -9,7 +9,13 @@ from typing import Any
 from src.agents.news_agent import run_news_agent
 from src.data_sources.sec_edgar import SecEdgarClient
 from src.data_sources.yahoo_finance import YahooFinanceClient
-from src.tools.financial_tools import get_cash_flow, get_financials, get_sec_edgar
+from src.tools.financial_tools import (
+    get_balance_sheet,
+    get_cash_flow,
+    get_financial_growth,
+    get_financials,
+    get_sec_edgar,
+)
 from src.tools.market_tools import get_company_info, get_price_data
 
 Tool = Callable[[str], dict[str, Any]]
@@ -26,6 +32,8 @@ def build_yahoo_tools(
         "company_info": partial(get_company_info, data_client),
         "financials": partial(get_financials, data_client),
         "cash_flow": partial(get_cash_flow, data_client),
+        "balance_sheet": partial(get_balance_sheet, data_client),
+        "financial_growth": partial(get_financial_growth, data_client),
         "news": run_news_agent,
     }
 

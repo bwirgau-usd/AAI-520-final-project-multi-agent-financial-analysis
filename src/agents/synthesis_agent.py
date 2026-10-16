@@ -22,6 +22,8 @@ class SynthesisAgent:
         observations: Mapping[str, Any],
         reflection: Reflection,
         validation: list[ValidationIssue],
+        research_request: str = "",
+        specialist_analyses: Mapping[str, Any] | None = None,
     ) -> str:
         """Generate a grounded Markdown research report."""
 
@@ -29,6 +31,9 @@ class SynthesisAgent:
 Write a concise, evidence-based investment research report for {symbol} in
 Markdown. Use only the supplied observations and cover every available report
 field listed below.
+
+User research request:
+{research_request or 'Provide a comprehensive investment research report.'}
 
 Plan:
 {json.dumps(plan, default=str)}
@@ -42,6 +47,9 @@ Quality reflection:
 Deterministic validation:
 {json.dumps(validation, default=str)}
 
+Specialist analyses:
+{json.dumps(specialist_analyses or {}, default=str)}
+
 Use these headings: Company Overview, Price Performance, Valuation and
 Profitability, Financial Performance, Cash Flow, SEC EDGAR Evidence, Dividend,
 Recent News and Catalysts, Risks and Uncertainties, Data Quality, and
@@ -51,13 +59,16 @@ When supplied, include:
 - company name, symbol, sector, industry, country, current price, market
   capitalization, and enterprise value;
 - start and latest prices, one-year return, annualized volatility, maximum
-  drawdown, and price observation count;
+  drawdown, one-month and three-month returns, 52-week high and low, latest
+  and average trading volume, and price observation count;
 - trailing and forward P/E, price/sales, profit and operating margins, return
   on equity, and beta;
 - revenue, operating income, net income, EBITDA, diluted EPS, and the
   EBITDA/net-income ratio;
 - operating cash flow, free cash flow, capital expenditure, and dividend
   yield;
+- balance-sheet cash, debt, net debt, cash/debt ratio, assets, liabilities,
+  equity, and deterministic revenue, net-income, and diluted-EPS growth;
 - SEC entity name, CIK, SIC classification, every supplied official company
   fact with its period, filing metadata, and recent 10-K, 10-Q, and 8-K links;
 - news source and publisher, publication date, headline and URL, detected
@@ -79,6 +90,8 @@ Strict rules:
 - State that the latest price is unavailable when it is missing.
 - Do not provide personalized investment advice, guarantees, buy/sell/hold
   language, or an overall investment rating.
+- Directly answer the user's research request and identify which specialist
+  evidence supports each material conclusion.
 """.strip()
         report = self._llm(prompt).strip()
         if not report:

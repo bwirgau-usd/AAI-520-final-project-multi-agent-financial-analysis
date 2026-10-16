@@ -38,8 +38,9 @@ class NewsArticle(TypedDict, total=False):
     normalized_text: str
     category: str
     classification_scores: dict[str, int]
-    extracted: dict[str, list[str]]
-    summary_output: dict[str, str]
+    classification_confidence: float
+    extracted: dict[str, Any]
+    summary_output: dict[str, Any]
     specialist: str
     specialist_analysis: dict[str, Any]
     evaluation: dict[str, Any]

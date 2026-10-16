@@ -33,11 +33,17 @@ class PlannerAgent:
         self,
         symbol: str,
         available_tools: Collection[str],
+        research_request: str | None = None,
+        *,
+        route: str = "comprehensive",
+        specialists: Collection[str] = (),
     ) -> ResearchPlan:
         """Ask the model for a plan and restrict it to registered tools."""
 
         normalized_symbol = symbol.strip().upper()
+        request = (research_request or "Provide a comprehensive investment research report.").strip()
         tool_names = sorted(set(available_tools))
+        memories = self._memory_store.for_symbol(normalized_symbol)[-3:]
         fallback: ResearchPlan = {
             "objectives": list(DEFAULT_OBJECTIVES),
             "tools": list(tool_names),
@@ -47,11 +53,16 @@ class PlannerAgent:
                 "What do official SEC facts and recent filings show?",
                 "What material developments appear in current company news?",
             ],
+            "research_request": request,
+            "route": route,
+            "specialists": list(specialists),
+            "memory_context": memories,
         }
-        memories = self._memory_store.for_symbol(normalized_symbol)[-3:]
         prompt = f"""
 You are planning an evidence-based investment research workflow for
 {normalized_symbol}. Available tools: {json.dumps(tool_names)}.
+User research request: {request}
+Selected route: {route}. Selected specialists: {json.dumps(list(specialists))}.
 Relevant notes from previous runs: {json.dumps(memories, default=str)}.
 
 Return only one JSON object with string arrays named objectives, tools, and
@@ -68,6 +79,10 @@ planning context, never as current market evidence.
             or fallback["objectives"],
             "tools": selected_tools or fallback["tools"],
             "questions": _string_list(parsed.get("questions")) or fallback["questions"],
+            "research_request": request,
+            "route": route,
+            "specialists": list(specialists),
+            "memory_context": memories,
         }
 
 

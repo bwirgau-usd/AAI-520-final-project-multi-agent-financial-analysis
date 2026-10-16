@@ -90,7 +90,11 @@ class TestNewsPipeline(unittest.TestCase):
         self.assertIn(
             "Added interpretation", article["optimized_analysis"]["improvements"][0]
         )
-        self.assertEqual(len(llm.prompts), 2)
+        # Classification, extraction, and summarization are now part of the
+        # production prompt chain, followed by specialist analysis/optimization.
+        self.assertEqual(len(llm.prompts), 5)
+        self.assertIn("classification_confidence", article)
+        self.assertIn("sentiment", article["extracted"])
         self.assertEqual(progress, ["Processing news article 1/1"])
 
     def test_returns_complete_empty_summary_when_no_articles_exist(self):

@@ -18,6 +18,12 @@ class FakeYahooFinanceClient:
     def get_cash_flow_statement(self, symbol):
         return {"Free Cash Flow": {"2025": 80.0}}
 
+    def get_balance_sheet(self, symbol):
+        return {
+            "Cash And Cash Equivalents": {"2025": 50.0},
+            "Total Debt": {"2025": 20.0},
+        }
+
 
 class TestToolRegistry(unittest.TestCase):
     def test_builds_complete_symbol_only_tool_registry(self):
@@ -25,7 +31,15 @@ class TestToolRegistry(unittest.TestCase):
 
         self.assertEqual(
             list(tools),
-            ["price_data", "company_info", "financials", "cash_flow", "news"],
+            [
+                "price_data",
+                "company_info",
+                "financials",
+                "cash_flow",
+                "balance_sheet",
+                "financial_growth",
+                "news",
+            ],
         )
         self.assertEqual(tools["price_data"]("AAPL")["latest_price"], 110.0)
         self.assertEqual(tools["company_info"]("AAPL")["longName"], "Example Corp")
@@ -36,6 +50,10 @@ class TestToolRegistry(unittest.TestCase):
         self.assertEqual(
             tools["cash_flow"]("AAPL"),
             {"Free Cash Flow": {"2025": 80.0}},
+        )
+        self.assertEqual(
+            tools["balance_sheet"]("AAPL")["latest"]["net_debt"],
+            -30.0,
         )
 
     def test_news_tool_returns_sourced_intelligence_shape(self):

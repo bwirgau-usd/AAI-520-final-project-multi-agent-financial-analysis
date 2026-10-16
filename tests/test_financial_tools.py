@@ -2,7 +2,12 @@
 
 import unittest
 
-from src.tools.financial_tools import get_cash_flow, get_financials
+from src.tools.financial_tools import (
+    get_balance_sheet,
+    get_cash_flow,
+    get_financial_growth,
+    get_financials,
+)
 
 
 class FakeFinancialClient:
@@ -25,12 +30,23 @@ class FakeFinancialClient:
             "Free Cash Flow": {"2025": 80.0},
         }
 
+    def get_balance_sheet(self, symbol):
+        return {
+            "Cash And Cash Equivalents": {"2025": 125.0},
+            "Total Debt": {"2025": 50.0},
+            "Total Assets": {"2025": 800.0},
+            "Stockholders Equity": {"2025": 300.0},
+        }
+
 
 class EmptyFinancialClient:
     def get_income_statement(self, symbol):
         return {}
 
     def get_cash_flow_statement(self, symbol):
+        return {}
+
+    def get_balance_sheet(self, symbol):
         return {}
 
 
@@ -66,3 +82,18 @@ class TestFinancialTools(unittest.TestCase):
             get_cash_flow(client, "AAPL"),
             {"error": "No cash-flow data found"},
         )
+
+    def test_calculates_balance_sheet_cash_and_debt(self):
+        result = get_balance_sheet(FakeFinancialClient(), "AAPL")
+
+        self.assertEqual(result["latest"]["cash"], 125.0)
+        self.assertEqual(result["latest"]["debt"], 50.0)
+        self.assertEqual(result["latest"]["net_debt"], -75.0)
+        self.assertEqual(result["latest"]["cash_to_debt_ratio"], 2.5)
+
+    def test_calculates_revenue_and_earnings_growth(self):
+        result = get_financial_growth(FakeFinancialClient(), "AAPL")
+
+        self.assertEqual(result["revenue_growth_percent"], 11.11)
+        self.assertIsNone(result["net_income_growth_percent"])
+        self.assertEqual(result["latest_period"], "2025")

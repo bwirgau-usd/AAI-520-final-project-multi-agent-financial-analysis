@@ -31,7 +31,7 @@ refinement.
 ## Project Overview
 
 This project builds an autonomous Investment Research Agent that accepts a\
-stock symbol, plans a research strategy, gathers relevant financial\
+stock symbol and research question, plans a research strategy, gathers relevant financial\
 information, routes that information to specialist agents, and produces a\
 quality-controlled investment research report. The system is designed to make\
 its reasoning process and workflow decisions observable in the final project\
@@ -58,30 +58,22 @@ agents and data tools.
 
 ```mermaid
 flowchart LR
-    U[User and Stock Symbol] --> P[Research Planner]
-    P --> T[Domain Tools]
-    T --> A[Provider Adapters]
-    A --> Y[Yahoo Finance]
-    A --> X[SEC EDGAR]
-    A --> Q[NewsAPI]
-    A --> G[Google News RSS fallback]
-    Y --> C[News Processing Chain]
-    Q --> C
-    G --> C
-    X --> F[Filings Evidence]
-    C --> R
-    R --> N[News Analyst]
-    R --> E[Earnings Analyst]
-    R --> M[Market Analyst]
-    R --> F[Filings Analyst]
-    N --> S[Report Synthesizer]
-    E --> S
-    M --> S
-    F --> S
-    S --> V[Evaluator]
-    V -->|Revision feedback| O[Optimizer]
+    U[Symbol and research question] --> P[Research Planner]
+    P --> R{Request Router}
+    R -->|Market| M[Market Specialist and Tools]
+    R -->|Financial| F[Financial Specialist and Tools]
+    R -->|News| N[News Prompt Chain and Specialists]
+    R -->|Comprehensive| M
+    R -->|Comprehensive| F
+    R -->|Comprehensive| N
+    M --> E[Evidence Validation and Reflection]
+    F --> E
+    N --> E
+    E --> S[Report Synthesizer]
+    S --> V{Six-Criterion Report Evaluator}
+    V -->|Below threshold| O[Report Optimizer]
     O --> V
-    V -->|Quality threshold met| D[Final Research Report]
+    V -->|Pass or revision limit| D[Final Research Report]
     D --> L[Research Memory]
     L --> P
 ```
@@ -90,9 +82,9 @@ flowchart LR
 
 ### Research Planner
 
-- Interprets the requested stock symbol and research goal.
+- Interprets the requested stock symbol and user research question.
 - Creates a task plan based on available tools and required evidence.
-- Adjusts the plan when data is missing, stale, or unavailable.
+- Uses prior-run feedback as bounded planning context.
 
 ### Tool-Using Research Agent
 
@@ -108,8 +100,8 @@ flowchart LR
   trends.
 - **Market Analyst:** evaluates price behavior, volatility, volume, and market\
   context.
-- **Filings Analyst:** extracts relevant facts and risk disclosures from company\
-  filings.
+- **Financial Analyst:** retrieves statements, computes revenue and earnings\
+  growth, analyzes balance-sheet cash/debt, and incorporates SEC evidence.
 
 ### Report Synthesizer
 
@@ -155,11 +147,12 @@ needed.
 
 ### 3\. Evaluator–Optimizer
 
-The system generates specialist analysis, evaluates it with four 25-point\
-criteria, and uses the resulting feedback to refine weak analysis. The loop\
-stops when the configured quality threshold is met or the maximum number of\
-iterations is reached. Initial analysis, scores, feedback, and revisions remain\
-inspectable in the workflow state.
+The system evaluates specialist news analysis with four 25-point criteria. A\
+separate complete-report rubric scores completeness, grounding, reasoning,\
+consistency, sources, and clarity. LangGraph sends failed reports through the\
+optimizer and back to evaluation until the threshold or revision limit is\
+reached. Initial/final scores, feedback, revisions, and graph trace remain\
+inspectable in workflow state.
 
 ## Data Sources and Tools
 
@@ -194,7 +187,9 @@ Set `NEWS_API_KEY` to enable the second news source. When a primary provider
 fails or Yahoo returns fewer than three articles, the workflow can query Google
 News RSS and records all source counts and errors. `MAX_NEWS_ARTICLES`,
 `EVALUATION_SCORE_THRESHOLD`, and `MAX_OPTIMIZER_ITERATIONS` control news volume
-and the revision loop.
+and article revisions. `REPORT_SCORE_THRESHOLD` and `MAX_REPORT_REVISIONS`
+control complete-report evaluation. `RESEARCH_REQUEST` supplies the notebook's
+default question.
 
 ## Repository Structure
 
@@ -328,10 +323,10 @@ jupyter lab notebooks/final_project.ipynb
 ```
 
 Run the notebook from top to bottom. The setup section only constructs the\
-workflow; Section 8 performs the live eight-stage run, displays its structured\
+workflow; Section 7 performs two live runs for the same request, displays its structured\
 artifacts, renders deterministic and model-generated reports, and displays the\
 architecture diagrams, news summary graphs, and 10-year price graph. Set\
-`DEFAULT_TICKER` and `OLLAMA_MODEL` in `.env` to change the defaults.
+`DEFAULT_TICKER`, `RESEARCH_REQUEST`, and `OLLAMA_MODEL` in `.env` to change the defaults.
 
 The same extracted workflow also has an optional terminal interface:
 

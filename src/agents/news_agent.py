@@ -20,6 +20,7 @@ class NewsAgent:
         self,
         article: Mapping[str, Any],
         fallback: Mapping[str, Any],
+        research_request: str = "",
     ) -> dict[str, Any]:
         """Ask the model for observations, interpretation, and uncertainty."""
 
@@ -27,6 +28,8 @@ class NewsAgent:
         prompt = f"""
 You are a {specialist} financial news analyst. Analyze only the supplied
 article evidence.
+
+User research request: {research_request or 'general company research'}
 
 Article:
 {json.dumps(article, default=str)}
