@@ -9,8 +9,8 @@ from __future__ import annotations
 import math
 import statistics
 from collections.abc import Mapping, Sequence
+from itertools import pairwise
 from typing import Any, Protocol
-
 
 COMPANY_INFO_FIELDS = (
     "longName",
@@ -59,9 +59,7 @@ def get_price_data(
     total_return = (latest_price / start_price - 1) * 100
 
     daily_returns = [
-        current / previous - 1
-        for previous, current in zip(close, close[1:])
-        if previous != 0
+        current / previous - 1 for previous, current in pairwise(close) if previous != 0
     ]
     volatility = (
         statistics.stdev(daily_returns) * math.sqrt(252) * 100

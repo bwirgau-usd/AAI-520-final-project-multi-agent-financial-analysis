@@ -13,7 +13,9 @@ RAW_ARTICLE = {
 
 
 def test_get_company_news_normalizes_articles():
-    with patch("src.tools.news_tools.fetch_company_articles", return_value=[RAW_ARTICLE]):
+    with patch(
+        "src.tools.news_tools.fetch_company_articles", return_value=[RAW_ARTICLE]
+    ):
         articles = get_company_news("AAPL")
 
     assert len(articles) == 1
@@ -33,14 +35,18 @@ def test_get_company_news_dedupes_by_url():
 
 def test_get_company_news_drops_articles_missing_title_or_url():
     incomplete = {**RAW_ARTICLE, "title": ""}
-    with patch("src.tools.news_tools.fetch_company_articles", return_value=[incomplete]):
+    with patch(
+        "src.tools.news_tools.fetch_company_articles", return_value=[incomplete]
+    ):
         articles = get_company_news("AAPL")
 
     assert articles == []
 
 
 def test_get_company_news_returns_empty_list_on_provider_failure():
-    with patch("src.tools.news_tools.fetch_company_articles", side_effect=NewsApiError("boom")):
+    with patch(
+        "src.tools.news_tools.fetch_company_articles", side_effect=NewsApiError("boom")
+    ):
         articles = get_company_news("AAPL")
 
     assert articles == []

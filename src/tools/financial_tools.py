@@ -7,10 +7,9 @@ the financial agent.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol
+from typing import Any, Protocol
 
 from src.data_sources.base import Statement
-
 
 INCOME_ROWS = (
     "Total Revenue",
@@ -35,6 +34,13 @@ class FinancialDataClient(Protocol):
 
     def get_cash_flow_statement(self, symbol: str) -> Statement:
         """Return a normalized cash-flow statement."""
+
+
+class SecDataClient(Protocol):
+    """SEC data-source operation required by the filings tool."""
+
+    def get_company_data(self, symbol: str) -> dict[str, Any]:
+        """Return official facts and recent filings for a company."""
 
 
 def _select_rows(
@@ -80,3 +86,12 @@ def get_cash_flow(
         CASH_FLOW_ROWS,
         empty_message="No cash-flow data found",
     )
+
+
+def get_sec_edgar(
+    client: SecDataClient,
+    symbol: str,
+) -> dict[str, Any]:
+    """Return normalized official company facts and recent SEC filings."""
+
+    return client.get_company_data(symbol)

@@ -19,11 +19,20 @@ def render_console_summary(state: ResearchState) -> str:
     info = _mapping(observations.get("company_info"))
     financials = _mapping(observations.get("financials"))
     cash_flow = _mapping(observations.get("cash_flow"))
+    sec_edgar = _mapping(observations.get("sec_edgar"))
+    news_analysis = _mapping(
+        observations.get("news_analysis") or state.get("news_analysis")
+    )
     validation = state.get("validation", [])
+    report_validation = state.get("report_validation", [])
+    reflection = _mapping(state.get("reflection"))
+    plan = _mapping(state.get("plan"))
     period = _latest_period(financials, cash_flow)
     period_label = _period_label(period)
 
-    current_price = price.get("latest_price", info.get("currentPrice"))
+    current_price = price.get("latest_price")
+    if current_price is None:
+        current_price = info.get("currentPrice")
     revenue = _statement_value(financials, "Total Revenue", period)
     operating_income = _statement_value(financials, "Operating Income", period)
     net_income = _statement_value(financials, "Net Income", period)
@@ -54,6 +63,8 @@ def render_console_summary(state: ResearchState) -> str:
         f"   Enterprise Value:    {_large_currency(info.get('enterpriseValue'))}",
         "",
         "2. PRICE PERFORMANCE",
+        f"   Start Price:         {_currency(price.get('start_price'))}",
+        f"   Latest Price:        {_currency(price.get('latest_price'))}",
         f"   One-Year Return:     {_percentage_points(price.get('1y_return_percent'))}",
         (
             "   Annualized Volatility: "
@@ -63,6 +74,7 @@ def render_console_summary(state: ResearchState) -> str:
             "   Maximum Drawdown:    "
             f"{_percentage_points(price.get('maximum_drawdown_percent'))}"
         ),
+        f"   Observations:        {_number(price.get('observations'), 0)}",
         "",
         "3. VALUATION",
         f"   Trailing P/E:        {_number(info.get('trailingPE'))}",
@@ -88,34 +100,266 @@ def render_console_summary(state: ResearchState) -> str:
         f"   Operating Cash Flow: {_large_currency(operating_cash)}",
         f"   Free Cash Flow:      {_large_currency(free_cash)}",
         f"   Capital Expenditure: {_large_currency(capital_expenditure)}",
-        "",
-        "6. DIVIDEND",
-        f"   Dividend Yield:      {_ratio_percent(info.get('dividendYield'))}",
-        "",
-        "7. DATA VALIDATION",
     ]
-    if validation:
-        lines.extend(
-            f"   - {issue.get('field', issue.get('tool', 'general'))}: "
-            f"{issue.get('message', str(issue))}"
-            for issue in validation
-        )
-    else:
-        lines.append("   No validation issues reported.")
 
-    missing = [
-        issue.get("field", issue.get("tool", "unknown"))
+    lines.extend(["", "6. SEC EDGAR EVIDENCE"])
+    if sec_edgar.get("error"):
+        lines.append(f"   Unavailable:          {sec_edgar['error']}")
+    elif sec_edgar:
+        sic = _text(sec_edgar.get("sic"))
+        sic_description = _text(sec_edgar.get("sic_description"))
+        lines.extend(
+            [
+                f"   Source:               {_text(sec_edgar.get('source'))}",
+                f"   Entity:               {_text(sec_edgar.get('entity_name'))}",
+                f"   CIK:                  {_text(sec_edgar.get('cik'))}",
+                f"   SIC:                  {sic} — {sic_description}",
+                "   Official Company Facts:",
+            ]
+        )
+        fact_lines = _sec_fact_lines(_mapping(sec_edgar.get("official_company_facts")))
+        lines.extend(fact_lines or ["      None available"])
+        lines.append("   Recent Filings:")
+        filing_lines = _sec_filing_lines(sec_edgar.get("recent_filings"))
+        lines.extend(filing_lines or ["      None available"])
+    else:
+        lines.append("   No SEC EDGAR evidence collected.")
+
+    lines.extend(
+        [
+            "",
+            "7. DIVIDEND",
+            f"   Dividend Yield:      {_ratio_percent(info.get('dividendYield'))}",
+        ]
+    )
+
+    lines.extend(["", "8. RECENT NEWS AND CATALYSTS"])
+    lines.extend(_news_analysis_lines(news_analysis))
+
+    risk_issues = [
+        _issue_message(issue)
         for issue in validation
-        if issue.get("type") in {"missing_data", "missing_metric"}
+        if isinstance(issue, Mapping)
+        and issue.get("type")
+        in {"consistency", "invalid_scale", "invalid_value", "scale_mismatch"}
     ]
-    lines.extend(["", "8. MISSING INFORMATION"])
-    lines.extend((f"   - {field}" for field in missing) if missing else ["   None"])
+    risks = _unique_text(
+        reflection.get("weaknesses"),
+        reflection.get("suspicious_values"),
+        risk_issues,
+    )
+    lines.extend(["", "9. RISKS AND UNCERTAINTIES"])
+    lines.extend(
+        (f"   - {risk}" for risk in risks)
+        if risks
+        else ["   None identified in the available evidence."]
+    )
+
+    lines.extend(["", "10. DATA QUALITY"])
+    quality_notes = [
+        *(
+            f"Evidence strength: {strength}"
+            for strength in _unique_text(reflection.get("strengths"))
+        ),
+        *(_issue_text(issue) for issue in validation),
+        *(f"Report validation: {_issue_text(issue)}" for issue in report_validation),
+    ]
+    lines.extend(
+        (f"   - {note}" for note in quality_notes)
+        if quality_notes
+        else ["   No automated validation issues reported."]
+    )
+
+    missing_issues = [
+        _issue_message(issue)
+        for issue in validation
+        if isinstance(issue, Mapping)
+        and issue.get("type") in {"missing_data", "missing_metric"}
+    ]
+    missing = _unique_text(
+        reflection.get("missing_information"),
+        missing_issues,
+    )
+    lines.extend(["", "11. MISSING INFORMATION"])
+    lines.extend((f"   - {item}" for item in missing) if missing else ["   None"])
+
+    further_research = _unique_text(
+        reflection.get("follow_up_questions"),
+        plan.get("questions"),
+    )
+    lines.extend(["", "12. FURTHER RESEARCH"])
+    lines.extend(
+        (f"   - {item}" for item in further_research)
+        if further_research
+        else ["   None identified."]
+    )
     lines.extend(["", "=" * 70, "END OF FINAL RESEARCH REPORT", "=" * 70])
     return "\n".join(lines)
 
 
 def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _sec_fact_lines(facts: Mapping[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for name, raw_fact in facts.items():
+        fact = _mapping(raw_fact)
+        unit = _text(fact.get("unit"))
+        value = _number(fact.get("value"))
+        metadata = [
+            f"FY {_text(fact.get('fiscal_year'))}",
+            f"period {_text(fact.get('fiscal_period'))}",
+            f"ended {_text(fact.get('period_end'))}",
+            f"filed {_text(fact.get('filed'))}",
+            f"form {_text(fact.get('form'))}",
+            f"accession {_text(fact.get('accession'))}",
+        ]
+        lines.append(f"      {name}: {value} {unit} ({'; '.join(metadata)})")
+    return lines
+
+
+def _sec_filing_lines(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    lines: list[str] = []
+    for raw_filing in value:
+        filing = _mapping(raw_filing)
+        if not filing:
+            continue
+        lines.append(
+            "      - "
+            f"{_text(filing.get('form'))} | "
+            f"filed {_text(filing.get('filing_date'))} | "
+            f"report {_text(filing.get('report_date'))} | "
+            f"accession {_text(filing.get('accession'))} | "
+            f"{_text(filing.get('filing_url'))}"
+        )
+    return lines
+
+
+def _news_analysis_lines(news: Mapping[str, Any]) -> list[str]:
+    if news.get("error"):
+        return [f"   Unavailable:          {news['error']}"]
+    if not news:
+        return ["   News pipeline was not run."]
+
+    lines = [
+        f"   Retrieved At:        {_text(news.get('retrieved_at'))}",
+        f"   Pipeline Stages:     {_sequence_text(news.get('pipeline_stages'))}",
+        f"   Articles Processed:  {_number(news.get('article_count'), 0)}",
+        f"   Retrieved Counts:    {_mapping_text(news.get('retrieved_counts'))}",
+        f"   Source Counts:       {_mapping_text(news.get('source_counts'))}",
+        f"   Routing Counts:      {_mapping_text(news.get('routing_counts'))}",
+        f"   Average Score:       {_score(news.get('average_score'))}",
+        f"   Passed Evaluations:  {_number(news.get('passed_count'), 0)}",
+        f"   Score Threshold:     {_score(news.get('evaluation_threshold'))}",
+        (f"   Optimizer Limit:     {_number(news.get('max_optimizer_iterations'), 0)}"),
+    ]
+    source_errors = _mapping(news.get("source_errors"))
+    for source, error in source_errors.items():
+        lines.append(f"   Source Error ({source}): {error}")
+
+    articles = news.get("articles")
+    if not isinstance(articles, list) or not articles:
+        lines.append("   No current company news articles were available.")
+        return lines
+
+    for index, raw_article in enumerate(articles, start=1):
+        article = _mapping(raw_article)
+        summary = _mapping(article.get("summary_output"))
+        evaluation = _mapping(article.get("evaluation"))
+        optimized = _mapping(article.get("optimized_analysis"))
+        lines.extend(
+            [
+                f"   Article {index}:",
+                f"      Headline: {_text(article.get('title'))}",
+                (
+                    "      Source: "
+                    f"{_text(article.get('source'))} / "
+                    f"{_text(article.get('publisher'))}"
+                ),
+                f"      Published: {_text(article.get('published_at'))}",
+                f"      URL: {_text(article.get('url'))}",
+                (
+                    "      Route: "
+                    f"{_text(article.get('category'))} → "
+                    f"{_text(article.get('specialist'))}"
+                ),
+                f"      Events: {_text(summary.get('detected_events'))}",
+                f"      Figures: {_text(summary.get('financial_figures'))}",
+                f"      Keywords: {_text(summary.get('keywords'))}",
+                (
+                    "      Evaluation: "
+                    f"{_score(evaluation.get('score'))}; "
+                    f"passed={bool(evaluation.get('passed'))}"
+                ),
+            ]
+        )
+        for feedback in _text_items(evaluation.get("feedback")):
+            lines.append(f"      Feedback: {feedback}")
+        for observation in _text_items(optimized.get("observations")):
+            lines.append(f"      Observation: {observation}")
+        if optimized.get("interpretation"):
+            lines.append(
+                f"      Interpretation: {_text(optimized.get('interpretation'))}"
+            )
+        for uncertainty in _text_items(optimized.get("uncertainties")):
+            lines.append(f"      Uncertainty: {uncertainty}")
+        for improvement in _text_items(optimized.get("improvements")):
+            lines.append(f"      Improvement: {improvement}")
+    return lines
+
+
+def _mapping_text(value: object) -> str:
+    mapping = _mapping(value)
+    if not mapping:
+        return "None"
+    return ", ".join(f"{key}={item}" for key, item in mapping.items())
+
+
+def _sequence_text(value: object) -> str:
+    if not isinstance(value, (list, tuple)):
+        return "None"
+    return " → ".join(str(item) for item in value) or "None"
+
+
+def _text_items(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item)]
+
+
+def _score(value: object) -> str:
+    number = _numeric(value)
+    return "N/A" if number is None else f"{number:.1f}/100"
+
+
+def _unique_text(*collections: object) -> list[str]:
+    unique: list[str] = []
+    for collection in collections:
+        if not isinstance(collection, (list, tuple)):
+            continue
+        for item in collection:
+            if not isinstance(item, str):
+                continue
+            normalized = item.strip()
+            if normalized and normalized not in unique:
+                unique.append(normalized)
+    return unique
+
+
+def _issue_message(issue: object) -> str:
+    if not isinstance(issue, Mapping):
+        return str(issue)
+    return str(issue.get("message") or issue.get("field") or "Unknown issue")
+
+
+def _issue_text(issue: object) -> str:
+    if not isinstance(issue, Mapping):
+        return str(issue)
+    field = issue.get("field", issue.get("tool", "general"))
+    return f"{field}: {_issue_message(issue)}"
 
 
 def _latest_period(*statements: Mapping[str, Any]) -> object | None:

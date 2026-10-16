@@ -55,4 +55,3 @@ class TestMarketTools(unittest.TestCase):
         self.assertEqual(result["marketCap"], 1000)
         self.assertNotIn("unrequested", result)
         self.assertIn("dividendYield", result)
-

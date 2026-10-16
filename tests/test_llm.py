@@ -20,9 +20,7 @@ class FakeOllamaClient:
 
 class TestAskLlm(unittest.TestCase):
     def test_sends_prompt_and_returns_mapping_response(self):
-        client = FakeOllamaClient(
-            {"message": {"content": "  A concise response.  "}}
-        )
+        client = FakeOllamaClient({"message": {"content": "  A concise response.  "}})
 
         result = ask_llm("Explain P/E.", model="test-model", client=client)
 
@@ -38,9 +36,7 @@ class TestAskLlm(unittest.TestCase):
         )
 
     def test_accepts_object_response_and_environment_model(self):
-        response = SimpleNamespace(
-            message=SimpleNamespace(content="Object response")
-        )
+        response = SimpleNamespace(message=SimpleNamespace(content="Object response"))
         client = FakeOllamaClient(response)
 
         with patch.dict(os.environ, {"OLLAMA_MODEL": "environment-model"}):
@@ -58,4 +54,3 @@ class TestAskLlm(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "empty or unsupported"):
             ask_llm("Prompt", client=client)
-

@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MEMORY_PATH = Path("data/memory/research_memory.json")
 
@@ -28,7 +27,7 @@ class ResearchMemoryStore:
         project_root: Path | str | None = None,
         *,
         max_entries: int = 20,
-    ) -> "ResearchMemoryStore":
+    ) -> ResearchMemoryStore:
         """Build a store from ``MEMORY_PATH``, loading the project ``.env``."""
 
         root = Path(project_root or PROJECT_ROOT).resolve()

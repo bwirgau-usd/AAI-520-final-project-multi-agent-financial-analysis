@@ -1,4 +1,3 @@
-
 from src.workflows.news_pipeline import ingest, preprocess, run_news_pipeline
 
 ARTICLE = {

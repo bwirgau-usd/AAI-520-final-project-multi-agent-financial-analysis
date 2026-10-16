@@ -53,7 +53,7 @@ The project has four primary objectives:
 
 ## System Architecture
 
-The planned workflow coordinates a research agent with several specialized\
+The implemented workflow coordinates a research agent with several specialized\
 agents and data tools.
 
 ```mermaid
@@ -62,11 +62,13 @@ flowchart LR
     P --> T[Domain Tools]
     T --> A[Provider Adapters]
     A --> Y[Yahoo Finance]
-    A --> X[SEC EDGAR / FRED / NewsAPI / Alpha Vantage]
+    A --> X[SEC EDGAR]
+    A --> Q[NewsAPI]
+    A --> G[Google News RSS fallback]
     Y --> C[News Processing Chain]
-    Y --> R[Specialist Router]
-    X --> C
-    X --> R
+    Q --> C
+    G --> C
+    X --> F[Filings Evidence]
     C --> R
     R --> N[News Analyst]
     R --> E[Earnings Analyst]
@@ -136,7 +138,8 @@ flowchart LR
 Financial news is processed through a sequence of focused stages:
 
 ```text
-Ingest News -> Preprocess -> Classify -> Extract -> Summarize
+Yahoo Finance + NewsAPI (+ Google RSS fallback) -> Deduplicate -> Preprocess
+                                                -> Classify -> Extract -> Summarize
 ```
 
 Each stage produces a structured output for the next stage, making the process\
@@ -152,23 +155,25 @@ needed.
 
 ### 3\. Evaluator–Optimizer
 
-The system generates a draft report, evaluates it against explicit criteria,\
-and uses the resulting feedback to refine the analysis. The loop stops when the\
-report meets the quality threshold or the maximum number of iterations is\
-reached.
+The system generates specialist analysis, evaluates it with four 25-point\
+criteria, and uses the resulting feedback to refine weak analysis. The loop\
+stops when the configured quality threshold is met or the maximum number of\
+iterations is reached. Initial analysis, scores, feedback, and revisions remain\
+inspectable in the workflow state.
 
 ## Data Sources and Tools
 
-Yahoo Finance is the initial ingestion source. Additional providers are kept in\
-separate adapter packages so they can be added without coupling provider APIs\
-to agent or analysis logic.
+Yahoo Finance, SEC EDGAR, NewsAPI, and Google News RSS are implemented sources.\
+Additional providers are kept in separate adapter packages so they can be added\
+without coupling provider APIs to agent or analysis logic.
 
 | Source                   | Status     | Intended use                                          |
 | ------------------------ | ---------- | ----------------------------------------------------- |
-| Yahoo Finance / `yfinance` | Initial    | Prices, company information, and financial statements |
-| SEC EDGAR                | Scaffolded | Company filings and regulatory disclosures            |
+| Yahoo Finance / `yfinance` | Integrated | Prices, company data, statements, cash flow, and news  |
+| SEC EDGAR                | Integrated | Official company facts and recent 10-K/10-Q/8-K filings |
 | FRED                     | Scaffolded | Macroeconomic indicators                              |
-| NewsAPI                  | Scaffolded | Current and historical company news                   |
+| NewsAPI                  | Integrated | Optional current company-news source                  |
+| Google News RSS          | Integrated | Automatic fallback for sparse primary news results    |
 | Alpha Vantage            | Scaffolded | Supplemental market and fundamental data              |
 
 Provider-specific authentication, retrieval, parsing, rate-limit handling, and\
@@ -180,6 +185,16 @@ back between sources later.
 All external information used in a report should retain its source and retrieval\
 date. API credentials must be stored in environment variables and must not be\
 committed to the repository.
+
+SEC requests must identify the application. Set `SEC_USER_AGENT` in `.env` to a
+descriptive value containing a monitored contact email, as shown in
+`.env.example`.
+
+Set `NEWS_API_KEY` to enable the second news source. When a primary provider
+fails or Yahoo returns fewer than three articles, the workflow can query Google
+News RSS and records all source counts and errors. `MAX_NEWS_ARTICLES`,
+`EVALUATION_SCORE_THRESHOLD`, and `MAX_OPTIMIZER_ITERATIONS` control news volume
+and the revision loop.
 
 ## Repository Structure
 
@@ -226,6 +241,9 @@ multi-agent-financial-analysis/
 │   │   ├── news_api/
 │   │   │   ├── __init__.py
 │   │   │   └── client.py
+│   │   ├── google_news/
+│   │   │   ├── __init__.py
+│   │   │   └── client.py
 │   │   └── alpha_vantage/
 │   │       ├── __init__.py
 │   │       └── client.py
@@ -236,6 +254,8 @@ multi-agent-financial-analysis/
 │   │   ├── registry.py
 │   │   └── news_tools.py
 │   ├── reporting/
+│   │   ├── charts.py
+│   │   ├── diagrams.py
 │   │   └── console.py
 │   ├── workflows/
 │   │   ├── __init__.py
@@ -298,41 +318,29 @@ Never commit the populated `.env` file or expose API keys in notebook output.
 
 ## Usage
 
-[`notebooks/final_project.ipynb`](notebooks/final_project.ipynb) is the canonical\
-project entry point. There are two ways to run it, pick whichever fits.
-
-### Option A: Google Colab (no local install)
-
-Nothing gets installed on your own machine. Section 2 of the notebook detects\
-it's running in Colab and installs Ollama inside that disposable Colab VM,\
-starts the service, and pulls the configured model automatically.
-
-1. Upload `notebooks/final_project.ipynb` to [colab.research.google.com](https://colab.research.google.com).
-2. Clone the repo or upload the `src/` folder and `requirements.txt` so the\
-   notebook can `import src...`. A quick way: add a cell at the top with\
-   `!git clone <repository-url> && %cd <repo-folder>`.
-3. Run `!pip install -r requirements.txt` in a Colab cell.
-4. Set any needed keys (e.g. `NEWS_API_KEY`) via `.env` or `os.environ` in a cell.
-5. Run the notebook top to bottom. Section 2's setup cell handles Ollama for you.
-
-### Option B: Local Jupyter (Ollama installed on your machine)
+[`notebooks/final_project.ipynb`](notebooks/final_project.ipynb)\
+is the canonical project entry point. Start the configured Ollama model, then\
+open the notebook:
 
 ```bash
 ollama serve
 jupyter lab notebooks/final_project.ipynb
 ```
 
-Run the notebook from top to bottom either way. The setup section only constructs\
-the workflow; Section 9 performs the live seven-stage run, displays its structured\
-artifacts, and renders the final report. Set `DEFAULT_TICKER` and `OLLAMA_MODEL`\
-in `.env` to change the defaults.
+Run the notebook from top to bottom. The setup section only constructs the\
+workflow; Section 8 performs the live eight-stage run, displays its structured\
+artifacts, renders deterministic and model-generated reports, and displays the\
+architecture diagrams, news summary graphs, and 10-year price graph. Set\
+`DEFAULT_TICKER` and `OLLAMA_MODEL` in `.env` to change the defaults.
 
-The same extracted workflow also has an optional terminal interface (local only,\
-requires Ollama running on the same machine):
+The same extracted workflow also has an optional terminal interface:
 
 ```bash
 python -m src.cli
 ```
+
+The terminal interface prints the combined report and displays news-analysis
+and 10-year adjusted-price graphs when data is available.
 
 ### Testing
 
@@ -351,7 +359,7 @@ RUN_OLLAMA_TESTS=1 pytest tests/test_ollama_integration.py -v
 
 ## Evaluation and Iteration
 
-Draft reports will be evaluated with measurable criteria such as:
+Reports and specialist analyses are evaluated with measurable criteria such as:
 
 - factual support and source traceability;
 - coverage of market, earnings, news, and filing evidence;
@@ -360,9 +368,10 @@ Draft reports will be evaluated with measurable criteria such as:
 - clarity, organization, and usefulness of the final report; and
 - successful completion of the required workflows.
 
-The notebook will retain initial drafts, evaluator scores, feedback, and revised\
-outputs to demonstrate the evaluator–optimizer cycle. Tests will cover core\
-workflow behavior and failure cases where practical.
+The notebook retains initial specialist analysis, evaluator scores, feedback,\
+and revised outputs to demonstrate the evaluator–optimizer cycle. Offline tests\
+cover provider normalization, deduplication, prompt chaining, routing, scoring,\
+optimization, orchestration, reporting, diagrams, and failure isolation.
 
 ## Memory and Learning Across Runs
 
@@ -408,17 +417,17 @@ Brandon Wirgau
 </td>
 <td>
 
-- [ ] Build financial statements tool
+- [x] Build financial statements tool
 
-- [ ] Implement Evaluator Agent
+- [x] Implement Evaluator Agent
 
-- [ ] Implement Self-Reflection
+- [x] Implement Self-Reflection
 
-- [ ] Implement Optimizer
+- [x] Implement Optimizer
 
-- [ ] Define evaluation criteria / rubric
+- [x] Define evaluation criteria / rubric
 
-- [ ] Implement Financial Agent
+- [x] Implement Financial Agent
 
 </td>
 </tr>
@@ -430,15 +439,15 @@ Arslan Isaac
 </td>
 <td>
 
-- [ ] Implement Router
+- [x] Implement Router
 
-- [ ] Implement Planner Agent
+- [x] Implement Planner Agent
 
-- [ ] Build Yahoo Finance market data tools
+- [x] Build Yahoo Finance market data tools
 
-- [ ] Calculate market metrics
+- [x] Calculate market metrics
 
-- [ ] Implement Market Agent
+- [x] Implement Market Agent
 
 - [ ] Additional Person 1 task(s) hidden in screenshot
 
@@ -452,19 +461,19 @@ Arslan Isaac
 </td>
 <td>
 
-- [ ] Integrate memory with planning
+- [x] Integrate memory with planning
 
 
-- [ ] Implement Synthesis Agent
+- [x] Implement Synthesis Agent
 
 
-- [ ] Implement persistent memory
+- [x] Implement persistent memory
 
 
-- [ ] Build news retrieval tool
+- [x] Build news retrieval tool
 
 
-- [ ] Build prompt chaining news workflow (ingest to summarize)
+- [x] Build prompt chaining news workflow (ingest to summarize)
 
 
 - [ ] Additional Person 3 task(s) hidden in screenshot
@@ -479,19 +488,19 @@ Combined
 </td>
 <td>
 
-- [ ] End-to-end demo + learning-across-runs demo
+- [x] End-to-end demo + learning-across-runs demo
 
 
-- [ ] Configure dependencies & environment
+- [x] Configure dependencies & environment
 
 
-- [ ] Full system testing (component, routing, evaluator, memory)
+- [x] Full system testing (component, routing, evaluator, memory)
 
 
-- [ ] Define shared LangGraph state schema
+- [x] Define shared workflow state schema
 
 
-- [ ] Finalize project scope & MVP definition
+- [x] Finalize project scope & MVP definition
 
 
 - [ ] Additional Whole Group task(s) hidden in screenshot

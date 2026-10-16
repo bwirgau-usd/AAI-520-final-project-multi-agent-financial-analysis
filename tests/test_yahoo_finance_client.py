@@ -56,9 +56,7 @@ class FakeTicker:
         self.income_stmt = FakeStatement(
             {"Total Revenue": {"2025": 500, "2024": math.nan}}
         )
-        self.cashflow = FakeStatement(
-            {"Free Cash Flow": {"2025": 125}}
-        )
+        self.cashflow = FakeStatement({"Free Cash Flow": {"2025": 125}})
 
     def history(self, *, period):
         self.history_periods.append(period)
@@ -102,4 +100,3 @@ class TestYahooFinanceClient(unittest.TestCase):
     def test_rejects_blank_symbol(self):
         with self.assertRaisesRegex(ValueError, "non-empty"):
             self.client.get_company_info(" ")
-

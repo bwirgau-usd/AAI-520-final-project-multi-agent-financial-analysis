@@ -6,7 +6,6 @@ import pytest
 
 from src.llm import ask_llm
 
-
 RUN_OLLAMA_TESTS = os.getenv("RUN_OLLAMA_TESTS") == "1"
 
 

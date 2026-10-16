@@ -66,4 +66,3 @@ class TestFinancialTools(unittest.TestCase):
             get_cash_flow(client, "AAPL"),
             {"error": "No cash-flow data found"},
         )
-

@@ -28,9 +28,7 @@ class TestToolRegistry(unittest.TestCase):
             ["price_data", "company_info", "financials", "cash_flow", "news"],
         )
         self.assertEqual(tools["price_data"]("AAPL")["latest_price"], 110.0)
-        self.assertEqual(
-            tools["company_info"]("AAPL")["longName"], "Example Corp"
-        )
+        self.assertEqual(tools["company_info"]("AAPL")["longName"], "Example Corp")
         self.assertEqual(
             tools["financials"]("AAPL"),
             {"Total Revenue": {"2025": 500.0}},
@@ -48,4 +46,3 @@ class TestToolRegistry(unittest.TestCase):
         self.assertEqual(result["symbol"], "AAPL")
         self.assertIn("sources", result)
         self.assertIn("summary", result)
-

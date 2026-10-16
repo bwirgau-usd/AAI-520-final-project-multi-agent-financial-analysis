@@ -40,6 +40,7 @@ class ResearchState(TypedDict, total=False):
     symbol: str
     plan: ResearchPlan
     observations: dict[str, Any]
+    news_analysis: dict[str, Any]
     validation: list[ValidationIssue]
     reflection: Reflection
     report: str

@@ -28,10 +28,8 @@ def execute_tools(
             continue
         try:
             result = tool(symbol)
-        except Exception as exc:  # keep one provider failure from ending the run
-            observations[tool_name] = {
-                "error": f"{type(exc).__name__}: {exc}"
-            }
+        except Exception as exc:  # noqa: BLE001 - isolate provider failures
+            observations[tool_name] = {"error": f"{type(exc).__name__}: {exc}"}
             continue
         observations[tool_name] = (
             result if result is not None else {"error": "Tool returned no data"}

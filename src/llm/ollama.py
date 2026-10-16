@@ -6,7 +6,6 @@ import os
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-
 DEFAULT_OLLAMA_MODEL = "llama3.2:latest"
 
 
@@ -57,4 +56,3 @@ def ask_llm(
         raise RuntimeError("Ollama returned an empty or unsupported response.")
 
     return content.strip()
-

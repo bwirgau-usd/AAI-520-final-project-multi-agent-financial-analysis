@@ -51,6 +51,20 @@ class EvaluatorAgent:
                     }
                 )
 
+        news_analysis = observations.get("news_analysis")
+        if (
+            isinstance(news_analysis, Mapping)
+            and not news_analysis.get("error")
+            and news_analysis.get("article_count") == 0
+        ):
+            issues.append(
+                {
+                    "type": "missing_data",
+                    "tool": "news_analysis",
+                    "message": "No current company news articles were available.",
+                }
+            )
+
         price_data = observations.get("price_data")
         if isinstance(price_data, Mapping) and not price_data.get("error"):
             self._validate_price_data(price_data, issues)
@@ -116,8 +130,7 @@ class EvaluatorAgent:
             if (
                 operating_cash is not None
                 and free_cash is not None
-                and free_cash > operating_cash
-                and operating_cash >= 0
+                and free_cash > operating_cash >= 0
             ):
                 issues.append(
                     {
@@ -151,8 +164,7 @@ class EvaluatorAgent:
                         "field": "company_percentage",
                         "value": percentage_value,
                         "message": (
-                            "A percentage-like company value has an implausible "
-                            "scale."
+                            "A percentage-like company value has an implausible scale."
                         ),
                     }
                 )
@@ -195,13 +207,9 @@ missing_information, suspicious_values, and follow_up_questions.
         reflection: Reflection = {
             "strengths": _string_list(parsed.get("strengths")),
             "weaknesses": _string_list(parsed.get("weaknesses")),
-            "missing_information": _string_list(
-                parsed.get("missing_information")
-            ),
+            "missing_information": _string_list(parsed.get("missing_information")),
             "suspicious_values": _string_list(parsed.get("suspicious_values")),
-            "follow_up_questions": _string_list(
-                parsed.get("follow_up_questions")
-            ),
+            "follow_up_questions": _string_list(parsed.get("follow_up_questions")),
             "deterministic_issues": list(issues),
         }
         for issue in issues:
@@ -242,17 +250,20 @@ missing_information, suspicious_values, and follow_up_questions.
             ]
 
         cash_flow = observations.get("cash_flow")
-        has_cash_data = _find_value(
-            cash_flow,
-            {
-                "operating_cash_flow",
-                "operatingCashFlow",
-                "Operating Cash Flow",
-                "free_cash_flow",
-                "freeCashFlow",
-                "Free Cash Flow",
-            },
-        ) is not None
+        has_cash_data = (
+            _find_value(
+                cash_flow,
+                {
+                    "operating_cash_flow",
+                    "operatingCashFlow",
+                    "Operating Cash Flow",
+                    "free_cash_flow",
+                    "freeCashFlow",
+                    "Free Cash Flow",
+                },
+            )
+            is not None
+        )
         false_missing_phrases = (
             "cash generation data is missing",
             "cash flow data is missing",
@@ -268,6 +279,39 @@ missing_information, suspicious_values, and follow_up_questions.
                     "message": (
                         "The report incorrectly claims cash-flow data is missing."
                     ),
+                }
+            )
+
+        sec_data = observations.get("sec_edgar")
+        if (
+            isinstance(sec_data, Mapping)
+            and not sec_data.get("error")
+            and (
+                sec_data.get("official_company_facts") or sec_data.get("recent_filings")
+            )
+            and "sec" not in report.lower()
+            and "filing" not in report.lower()
+        ):
+            issues.append(
+                {
+                    "type": "missing_coverage",
+                    "field": "sec_edgar",
+                    "message": "The report does not discuss available SEC evidence.",
+                }
+            )
+
+        news_data = observations.get("news_analysis")
+        if (
+            isinstance(news_data, Mapping)
+            and news_data.get("article_count", 0)
+            and "news" not in report.lower()
+            and "catalyst" not in report.lower()
+        ):
+            issues.append(
+                {
+                    "type": "missing_coverage",
+                    "field": "news_analysis",
+                    "message": "The report does not discuss available news evidence.",
                 }
             )
 

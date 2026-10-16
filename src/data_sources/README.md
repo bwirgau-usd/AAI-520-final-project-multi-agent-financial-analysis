@@ -8,6 +8,5 @@ The rest of the application should access provider data through the modules in
 vendor and allows a provider to be replaced without rewriting the analysis
 logic.
 
-Yahoo Finance is the initial source. SEC EDGAR, FRED, NewsAPI, and Alpha
-Vantage are scaffolded for later integration.
-
+Yahoo Finance, SEC EDGAR, NewsAPI, and the Google News RSS fallback are
+integrated. FRED and Alpha Vantage remain extension scaffolds.

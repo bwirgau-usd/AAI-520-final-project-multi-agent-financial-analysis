@@ -27,9 +27,7 @@ class TestConsoleReporting(unittest.TestCase):
                             "2024-09-30": 1_800_000_000,
                         }
                     },
-                    "cash_flow": {
-                        "Free Cash Flow": {"2025-09-30": 500_000_000}
-                    },
+                    "cash_flow": {"Free Cash Flow": {"2025-09-30": 500_000_000}},
                 },
                 "reflection": {
                     "strengths": [],
