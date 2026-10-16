@@ -202,7 +202,7 @@ multi-agent-financial-analysis/
 ├── .gitignore
 ├── .env.example
 ├── notebooks/
-│   └── final_project.ipynb
+│   └── multi_agent_financial_analysis.ipynb
 ├── src/
 │   ├── __init__.py
 │   ├── state.py
@@ -313,13 +313,13 @@ Never commit the populated `.env` file or expose API keys in notebook output.
 
 ## Usage
 
-[`notebooks/final_project.ipynb`](notebooks/final_project.ipynb)\
+[`notebooks/multi_agent_financial_analysis.ipynb`](notebooks/multi_agent_financial_analysis.ipynb)\
 is the canonical project entry point. Start the configured Ollama model, then\
 open the notebook:
 
 ```bash
 ollama serve
-jupyter lab notebooks/final_project.ipynb
+jupyter lab notebooks/multi_agent_financial_analysis.ipynb
 ```
 
 Run the notebook from top to bottom. The setup section only constructs the\
