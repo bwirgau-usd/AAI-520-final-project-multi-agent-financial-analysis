@@ -84,7 +84,7 @@ class TestNewsPipeline(unittest.TestCase):
         self.assertEqual(article["category"], "earnings")
         self.assertEqual(article["specialist"], "earnings")
         self.assertEqual(
-            [item["score"] for item in article["evaluation_history"]], [50, 100]
+            [item["score"] for item in article["evaluation_history"]], [25, 100]
         )
         self.assertEqual(len(article["optimization_history"]), 1)
         self.assertIn(

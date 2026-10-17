@@ -298,6 +298,7 @@ class ResearchWorkflow:
         return {
             "draft_report": report,
             "report": report,
+            "best_report": report,
             "graph_trace": self._trace(state, "synthesize"),
         }
 
@@ -317,8 +318,22 @@ class ResearchWorkflow:
                 **revision_history[-1],
                 "after_score": evaluation["score"],
             }
+        best_report = state.get("best_report", state["report"])
+        best_evaluation = state.get("best_report_evaluation")
+        candidate_key = (bool(evaluation.get("passed")), float(evaluation["score"]))
+        best_key = (
+            (bool(best_evaluation.get("passed")), float(best_evaluation["score"]))
+            if best_evaluation
+            else (False, -1.0)
+        )
+        if candidate_key >= best_key:
+            best_report = state["report"]
+            best_evaluation = evaluation
         return {
-            "report_evaluation": evaluation,
+            "report": best_report,
+            "report_evaluation": best_evaluation,
+            "best_report": best_report,
+            "best_report_evaluation": best_evaluation,
             "report_evaluation_history": evaluation_history,
             "report_revision_history": revision_history,
             "graph_trace": self._trace(state, "evaluate_report"),

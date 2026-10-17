@@ -136,7 +136,31 @@ def get_balance_sheet(
         ),
         "stockholders_equity": _latest_row_value(selected, "Stockholders Equity"),
     }
-    return {"statement": selected, "latest": latest}
+    trend_rows = {
+        "cash_growth_percent": (
+            "Cash Cash Equivalents And Short Term Investments",
+            "Cash And Cash Equivalents",
+        ),
+        "debt_growth_percent": ("Total Debt",),
+        "assets_growth_percent": ("Total Assets",),
+        "liabilities_growth_percent": (
+            "Total Liabilities Net Minority Interest",
+        ),
+        "equity_growth_percent": ("Stockholders Equity",),
+    }
+    trends: dict[str, Any] = {}
+    latest_period: str | None = None
+    prior_period: str | None = None
+    for metric, rows in trend_rows.items():
+        periods, values = _latest_two_row_values(selected, *rows)
+        trends[metric] = (
+            _growth_percent(values[0], values[1]) if len(values) == 2 else None
+        )
+        if latest_period is None and len(periods) == 2:
+            latest_period, prior_period = periods
+    trends["latest_period"] = latest_period
+    trends["prior_period"] = prior_period
+    return {"statement": selected, "latest": latest, "trends": trends}
 
 
 def get_financial_growth(
@@ -182,6 +206,25 @@ def _latest_row_value(statement: Mapping[str, Any], *rows: str) -> float | None:
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     return float(value)
     return None
+
+
+def _latest_two_row_values(
+    statement: Mapping[str, Any],
+    *rows: str,
+) -> tuple[list[str], list[float]]:
+    for row in rows:
+        raw_values = statement.get(row)
+        if not isinstance(raw_values, Mapping):
+            continue
+        periods: list[str] = []
+        values: list[float] = []
+        for period, value in raw_values.items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                periods.append(str(period))
+                values.append(float(value))
+            if len(values) == 2:
+                return periods, values
+    return [], []
 
 
 def _growth_percent(latest: object, prior: object) -> float | None:

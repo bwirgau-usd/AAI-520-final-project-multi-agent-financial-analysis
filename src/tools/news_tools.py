@@ -83,6 +83,9 @@ FINANCIAL_PATTERNS = (
     r"\d+(?:\.\d+)?%",
     r"\d+(?:\.\d+)?\s?(?:million|billion|trillion)",
 )
+_PLACEHOLDER_TEXT = frozenset(
+    {"", "n/a", "na", "nil", "none", "not available", "null", "undefined"}
+)
 
 
 class YahooNewsClient(Protocol):
@@ -387,13 +390,18 @@ def _bounded_confidence(value: object, fallback: float) -> float:
 
 def _optional_string(value: object) -> str | None:
     text = str(value).strip() if value is not None else ""
-    return text or None
+    return text if text.casefold() not in _PLACEHOLDER_TEXT else None
 
 
 def _string_values(value: object) -> list[str]:
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
         return []
-    return [str(item).strip() for item in value if str(item).strip()]
+    return [
+        text
+        for item in value
+        if (text := str(item).strip())
+        and text.casefold() not in _PLACEHOLDER_TEXT
+    ]
 
 
 def normalize_text(text: object) -> str:

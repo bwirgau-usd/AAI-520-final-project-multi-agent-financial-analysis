@@ -34,6 +34,10 @@ def test_preprocess_drops_articles_with_empty_text():
 
 def test_run_news_pipeline_falls_back_gracefully_without_llm(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "src.workflows.news_pipeline.ask_llm",
+        lambda _prompt: (_ for _ in ()).throw(ConnectionError("offline")),
+    )
 
     result = run_news_pipeline("AAPL", [ARTICLE])
 

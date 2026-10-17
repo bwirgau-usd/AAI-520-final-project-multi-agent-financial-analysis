@@ -135,4 +135,10 @@ def get_company_info(
     """Return the allow-listed company fields used by research agents."""
 
     info = client.get_company_info(symbol)
-    return {field: info.get(field) for field in COMPANY_INFO_FIELDS}
+    result = {field: info.get(field) for field in COMPANY_INFO_FIELDS}
+    # Yahoo Finance's ``dividendYield`` display value is already expressed in
+    # percentage points (for example, 0.32 means 0.32%, not 32%). Keep the raw
+    # field for compatibility and expose its unit explicitly for report code.
+    result["dividendYieldPercent"] = info.get("dividendYield")
+    result["dividendYieldUnit"] = "percent"
+    return result

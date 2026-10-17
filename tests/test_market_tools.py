@@ -21,6 +21,7 @@ class FakeMarketClient:
             "longName": "Example Corp",
             "sector": "Technology",
             "marketCap": 1000,
+            "dividendYield": 0.32,
             "unrequested": "excluded",
         }
 
@@ -55,6 +56,8 @@ class TestMarketTools(unittest.TestCase):
         self.assertEqual(result["marketCap"], 1000)
         self.assertNotIn("unrequested", result)
         self.assertIn("dividendYield", result)
+        self.assertEqual(result["dividendYieldPercent"], 0.32)
+        self.assertEqual(result["dividendYieldUnit"], "percent")
 
     def test_calculates_period_range_and_volume_metrics(self):
         class RichMarketClient(FakeMarketClient):

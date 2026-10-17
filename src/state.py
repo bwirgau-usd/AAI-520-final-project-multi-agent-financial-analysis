@@ -54,6 +54,8 @@ class ResearchState(TypedDict, total=False):
     reflection: Reflection
     report: str
     draft_report: str
+    best_report: str
+    best_report_evaluation: dict[str, Any]
     report_validation: list[ValidationIssue]
     report_evaluation: dict[str, Any]
     report_evaluation_history: list[dict[str, Any]]

@@ -10,6 +10,10 @@ from numbers import Number
 from typing import Any
 
 from src.llm import parse_json_object
+from src.reporting.verified_metrics import (
+    financial_value_mismatches,
+    verified_financial_metrics,
+)
 from src.state import Reflection, ResearchPlan, ValidationIssue
 
 
@@ -250,6 +254,36 @@ missing_information, suspicious_values, and follow_up_questions.
                 }
             ]
 
+        incomplete_disclaimers = (
+            "not intended to be a complete",
+            "not intended to be complete",
+            "not intended to be a comprehensive",
+            "not intended to be comprehensive",
+            "not a complete analysis",
+            "not a comprehensive analysis",
+            "may not be complete",
+            "may not be comprehensive",
+        )
+        matched_disclaimer = next(
+            (
+                phrase
+                for phrase in incomplete_disclaimers
+                if phrase in normalized_report.casefold()
+            ),
+            None,
+        )
+        if matched_disclaimer:
+            issues.append(
+                {
+                    "type": "incomplete_report_claim",
+                    "value": matched_disclaimer,
+                    "message": (
+                        "The report disclaims completeness even though the workflow "
+                        "requires a complete response to the research request."
+                    ),
+                }
+            )
+
         cash_flow = observations.get("cash_flow")
         has_cash_data = (
             _find_value(
@@ -340,6 +374,22 @@ missing_information, suspicious_values, and follow_up_questions.
                     ),
                 }
             )
+        for mismatch in financial_value_mismatches(report, observations):
+            issues.append(
+                {
+                    "type": "financial_mismatch",
+                    "message": mismatch,
+                }
+            )
+        for label, search_terms in _required_report_content(observations):
+            if not any(term in normalized_report.casefold() for term in search_terms):
+                issues.append(
+                    {
+                        "type": "missing_required_content",
+                        "field": label,
+                        "message": f"The report omits available {label} evidence.",
+                    }
+                )
         return issues
 
     def evaluate_report(
@@ -355,19 +405,12 @@ missing_information, suspicious_values, and follow_up_questions.
 
         report_issues = self.validate_report(report, observations)
         text = report.lower()
-        requested_domains = (
-            [route] if route in {"market", "financial", "news"} else ["market", "financial", "news"]
-        )
-        domain_terms = {
-            "market": ("price", "return", "volatility", "volume", "drawdown"),
-            "financial": ("revenue", "income", "cash flow", "debt", "sec"),
-            "news": ("news", "catalyst", "headline", "sentiment", "event"),
-        }
+        required_content = _required_report_content(observations, route=route)
         covered = sum(
-            any(term in text for term in domain_terms[domain])
-            for domain in requested_domains
+            any(term in text for term in search_terms)
+            for _, search_terms in required_content
         )
-        completeness = round(100 * covered / max(len(requested_domains), 1))
+        completeness = round(100 * covered / max(len(required_content), 1))
 
         number_count = len(re.findall(r"(?<!\w)[+-]?\d+(?:\.\d+)?%?", report))
         evidence_terms = sum(
@@ -375,6 +418,11 @@ missing_information, suspicious_values, and follow_up_questions.
             for term in ("observation", "reported", "according", "evidence", "source")
         )
         grounding = min(100, number_count * 10 + evidence_terms * 15)
+        issue_types = {str(issue.get("type")) for issue in report_issues}
+        if "financial_mismatch" in issue_types:
+            grounding = min(grounding, 20)
+        elif "missing_required_content" in issue_types:
+            grounding = min(grounding, 50)
 
         reasoning_markers = sum(
             marker in text
@@ -391,6 +439,8 @@ missing_information, suspicious_values, and follow_up_questions.
         )
         reasoning = min(100, reasoning_markers * 15)
         consistency = max(0, 100 - 25 * len(report_issues))
+        if "financial_mismatch" in issue_types:
+            consistency = 0
 
         source_markers = sum(
             marker in text
@@ -405,7 +455,11 @@ missing_information, suspicious_values, and follow_up_questions.
             )
         )
         sources = min(100, source_markers * 20)
-        headings = len(re.findall(r"(?m)^#{1,6}\s+", report))
+        atx_headings = len(re.findall(r"(?m)^#{1,6}\s+", report))
+        setext_headings = len(
+            re.findall(r"(?m)^\S[^\n]*\n(?:=+|-+)\s*$", report)
+        )
+        headings = atx_headings + setext_headings
         clarity = min(100, (40 if len(report.split()) >= 80 else 20) + headings * 15)
 
         criteria = {
@@ -417,18 +471,32 @@ missing_information, suspicious_values, and follow_up_questions.
             "clarity": float(clarity),
         }
         score = round(sum(criteria.values()) / len(criteria), 2)
+        minimum_criterion_score = 60.0
         feedback = [
             f"Improve {name.replace('_', ' ')}; current score is {value:.0f}/100."
             for name, value in criteria.items()
             if value < 75
         ]
-        if research_request.lower() not in text and research_request.strip():
+        if not _request_addressed(text, research_request):
             feedback.append("Answer the user's research request explicitly.")
+        below_floor = [
+            name for name, value in criteria.items() if value < minimum_criterion_score
+        ]
+        if below_floor:
+            feedback.append(
+                "No report can pass while these criteria are below "
+                f"{minimum_criterion_score:.0f}/100: {', '.join(below_floor)}."
+            )
         feedback.extend(str(issue.get("message", "")) for issue in report_issues)
         return {
             "score": score,
-            "passed": score >= threshold and not report_issues,
+            "passed": (
+                score >= threshold
+                and not report_issues
+                and not below_floor
+            ),
             "threshold": threshold,
+            "minimum_criterion_score": minimum_criterion_score,
             "criteria": criteria,
             "feedback": [item for item in feedback if item],
             "validation_issues": report_issues,
@@ -537,3 +605,119 @@ def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def _required_report_content(
+    observations: Mapping[str, Any],
+    *,
+    route: str = "comprehensive",
+) -> list[tuple[str, tuple[str, ...]]]:
+    """Describe visible evidence that a complete report must acknowledge."""
+
+    requirements: list[tuple[str, tuple[str, ...]]] = []
+
+    def add(label: str, value: object, *terms: str) -> None:
+        if _has_usable_value(value):
+            requirements.append((label, tuple(term.casefold() for term in terms)))
+
+    include_market = route in {"market", "comprehensive"}
+    include_financial = route in {"financial", "comprehensive"}
+    include_news = route in {"news", "comprehensive"}
+    price = observations.get("price_data")
+    if include_market and isinstance(price, Mapping) and not price.get("error"):
+        for label, key, terms in (
+            ("latest price", "latest_price", ("latest price", "current price")),
+            (
+                "one-month return",
+                "1m_return_percent",
+                ("one-month", "1-month", "1m return"),
+            ),
+            (
+                "three-month return",
+                "3m_return_percent",
+                ("three-month", "3-month", "3m return"),
+            ),
+            (
+                "one-year return",
+                "1y_return_percent",
+                ("one-year", "1-year", "1y return"),
+            ),
+            ("volatility", "annualized_volatility_percent", ("volatility",)),
+            ("maximum drawdown", "maximum_drawdown_percent", ("drawdown",)),
+            ("52-week high", "52_week_high", ("52-week high", "52 week high")),
+            ("52-week low", "52_week_low", ("52-week low", "52 week low")),
+            ("latest volume", "latest_volume", ("latest volume", "trading volume")),
+            ("average volume", "average_volume", ("average volume",)),
+        ):
+            add(label, price.get(key), *terms)
+
+    if include_financial:
+        for metric in verified_financial_metrics(observations):
+            label = metric["label"].casefold()
+            add(metric["label"], metric["value"], label)
+
+        sec_data = observations.get("sec_edgar")
+        if isinstance(sec_data, Mapping) and not sec_data.get("error"):
+            add(
+                "SEC EDGAR",
+                sec_data.get("official_company_facts")
+                or sec_data.get("recent_filings"),
+                "sec",
+                "filing",
+            )
+
+    news = observations.get("news_analysis")
+    if include_news and isinstance(news, Mapping) and not news.get("error"):
+        add("news", news.get("article_count"), "news", "headline", "catalyst")
+
+    if requirements:
+        return list(dict.fromkeys(requirements))
+    fallback_terms = {
+        "market": [("market analysis", ("price", "return", "market"))],
+        "financial": [("financial analysis", ("revenue", "income", "financial"))],
+        "news": [("news analysis", ("news", "headline", "event"))],
+        "comprehensive": [
+            ("market analysis", ("price", "return", "market")),
+            ("financial analysis", ("revenue", "income", "financial")),
+            ("news analysis", ("news", "headline", "event")),
+        ],
+    }
+    return fallback_terms.get(route, fallback_terms["comprehensive"])
+
+
+def _has_usable_value(value: object) -> bool:
+    if value is None or value == "":
+        return False
+    if isinstance(value, Mapping):
+        return bool(value) and not value.get("error")
+    if isinstance(value, (list, tuple, set)):
+        return bool(value)
+    return True
+
+
+def _request_addressed(report_text: str, research_request: str) -> bool:
+    """Check request coverage without requiring verbatim question repetition."""
+
+    if not research_request.strip():
+        return True
+    stopwords = {
+        "affect",
+        "and",
+        "company",
+        "current",
+        "does",
+        "how",
+        "the",
+        "their",
+        "this",
+        "what",
+    }
+    request_terms = {
+        term
+        for term in re.findall(r"[a-z0-9]+", research_request.casefold())
+        if len(term) >= 3 and term not in stopwords
+    }
+    if not request_terms:
+        return True
+    covered = sum(term in report_text for term in request_terms)
+    return covered / len(request_terms) >= 0.6

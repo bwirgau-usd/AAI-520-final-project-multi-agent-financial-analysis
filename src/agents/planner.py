@@ -74,10 +74,17 @@ planning context, never as current market evidence.
         selected_tools = [
             item for item in _string_list(parsed.get("tools")) if item in tool_names
         ]
+        # Request routing has already bounded ``tool_names`` to the selected
+        # specialist path. Preserve the model's priority order without letting
+        # it silently omit required evidence from that path.
+        required_tools = [
+            *selected_tools,
+            *(name for name in tool_names if name not in selected_tools),
+        ]
         return {
             "objectives": _string_list(parsed.get("objectives"))
             or fallback["objectives"],
-            "tools": selected_tools or fallback["tools"],
+            "tools": required_tools,
             "questions": _string_list(parsed.get("questions")) or fallback["questions"],
             "research_request": request,
             "route": route,

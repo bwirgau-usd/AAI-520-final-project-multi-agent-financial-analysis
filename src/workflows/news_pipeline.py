@@ -102,6 +102,7 @@ class NewsPipeline:
             current_analysis = initial_analysis
             evaluation = evaluate_analysis(
                 current_analysis,
+                article=article,
                 threshold=self.evaluation_threshold,
             )
             evaluation_history = [evaluation]
@@ -129,6 +130,7 @@ class NewsPipeline:
                 optimization_history.append(current_analysis)
                 evaluation = evaluate_analysis(
                     current_analysis,
+                    article=article,
                     threshold=self.evaluation_threshold,
                 )
                 evaluation_history.append(evaluation)

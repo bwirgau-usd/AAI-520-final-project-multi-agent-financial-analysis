@@ -19,6 +19,10 @@ def render_console_summary(state: ResearchState) -> str:
     info = _mapping(observations.get("company_info"))
     financials = _mapping(observations.get("financials"))
     cash_flow = _mapping(observations.get("cash_flow"))
+    balance_sheet = _mapping(observations.get("balance_sheet"))
+    balance_latest = _mapping(balance_sheet.get("latest"))
+    balance_trends = _mapping(balance_sheet.get("trends"))
+    financial_growth = _mapping(observations.get("financial_growth"))
     sec_edgar = _mapping(observations.get("sec_edgar"))
     news_analysis = _mapping(
         observations.get("news_analysis") or state.get("news_analysis")
@@ -100,9 +104,51 @@ def render_console_summary(state: ResearchState) -> str:
         f"   Operating Cash Flow: {_large_currency(operating_cash)}",
         f"   Free Cash Flow:      {_large_currency(free_cash)}",
         f"   Capital Expenditure: {_large_currency(capital_expenditure)}",
+        "",
+        "6. BALANCE SHEET AND GROWTH",
+        f"   Cash:                {_large_currency(balance_latest.get('cash'))}",
+        f"   Total Debt:          {_large_currency(balance_latest.get('debt'))}",
+        f"   Net Debt:            {_large_currency(balance_latest.get('net_debt'))}",
+        (
+            "   Cash / Debt:         "
+            f"{_multiple(balance_latest.get('cash_to_debt_ratio'))}"
+        ),
+        f"   Total Assets:        {_large_currency(balance_latest.get('total_assets'))}",
+        (
+            "   Total Liabilities:   "
+            f"{_large_currency(balance_latest.get('total_liabilities'))}"
+        ),
+        (
+            "   Stockholders' Equity: "
+            f"{_large_currency(balance_latest.get('stockholders_equity'))}"
+        ),
+        (
+            "   Revenue Growth:      "
+            f"{_percentage_points(financial_growth.get('revenue_growth_percent'))}"
+        ),
+        (
+            "   Net Income Growth:   "
+            f"{_percentage_points(financial_growth.get('net_income_growth_percent'))}"
+        ),
+        (
+            "   Diluted EPS Growth:  "
+            f"{_percentage_points(financial_growth.get('diluted_eps_growth_percent'))}"
+        ),
+        (
+            "   Cash Trend:          "
+            f"{_percentage_points(balance_trends.get('cash_growth_percent'))}"
+        ),
+        (
+            "   Debt Trend:          "
+            f"{_percentage_points(balance_trends.get('debt_growth_percent'))}"
+        ),
+        (
+            "   Assets Trend:        "
+            f"{_percentage_points(balance_trends.get('assets_growth_percent'))}"
+        ),
     ]
 
-    lines.extend(["", "6. SEC EDGAR EVIDENCE"])
+    lines.extend(["", "7. SEC EDGAR EVIDENCE"])
     if sec_edgar.get("error"):
         lines.append(f"   Unavailable:          {sec_edgar['error']}")
     elif sec_edgar:
@@ -128,12 +174,15 @@ def render_console_summary(state: ResearchState) -> str:
     lines.extend(
         [
             "",
-            "7. DIVIDEND",
-            f"   Dividend Yield:      {_ratio_percent(info.get('dividendYield'))}",
+            "8. DIVIDEND",
+            (
+                "   Dividend Yield:      "
+                f"{_percentage_points(info.get('dividendYieldPercent', info.get('dividendYield')))}"
+            ),
         ]
     )
 
-    lines.extend(["", "8. RECENT NEWS AND CATALYSTS"])
+    lines.extend(["", "9. RECENT NEWS AND CATALYSTS"])
     lines.extend(_news_analysis_lines(news_analysis))
 
     risk_issues = [
@@ -148,14 +197,14 @@ def render_console_summary(state: ResearchState) -> str:
         reflection.get("suspicious_values"),
         risk_issues,
     )
-    lines.extend(["", "9. RISKS AND UNCERTAINTIES"])
+    lines.extend(["", "10. RISKS AND UNCERTAINTIES"])
     lines.extend(
         (f"   - {risk}" for risk in risks)
         if risks
         else ["   None identified in the available evidence."]
     )
 
-    lines.extend(["", "10. DATA QUALITY"])
+    lines.extend(["", "11. DATA QUALITY"])
     quality_notes = [
         *(
             f"Evidence strength: {strength}"
@@ -180,14 +229,14 @@ def render_console_summary(state: ResearchState) -> str:
         reflection.get("missing_information"),
         missing_issues,
     )
-    lines.extend(["", "11. MISSING INFORMATION"])
+    lines.extend(["", "12. MISSING INFORMATION"])
     lines.extend((f"   - {item}" for item in missing) if missing else ["   None"])
 
     further_research = _unique_text(
         reflection.get("follow_up_questions"),
         plan.get("questions"),
     )
-    lines.extend(["", "12. FURTHER RESEARCH"])
+    lines.extend(["", "13. FURTHER RESEARCH"])
     lines.extend(
         (f"   - {item}" for item in further_research)
         if further_research
@@ -415,7 +464,10 @@ def _number(value: object, decimals: int = 2) -> str:
 
 def _currency(value: object) -> str:
     number = _numeric(value)
-    return "N/A" if number is None else f"${number:,.2f}"
+    if number is None:
+        return "N/A"
+    sign = "-" if number < 0 else ""
+    return f"{sign}${abs(number):,.2f}"
 
 
 def _large_currency(value: object) -> str:
@@ -423,12 +475,13 @@ def _large_currency(value: object) -> str:
     if number is None:
         return "N/A"
     magnitude = abs(number)
+    sign = "-" if number < 0 else ""
     if magnitude >= 1_000_000_000_000:
-        return f"${number / 1_000_000_000_000:.3f}T"
+        return f"{sign}${magnitude / 1_000_000_000_000:.3f}T"
     if magnitude >= 1_000_000_000:
-        return f"${number / 1_000_000_000:.3f}B"
+        return f"{sign}${magnitude / 1_000_000_000:.3f}B"
     if magnitude >= 1_000_000:
-        return f"${number / 1_000_000:.3f}M"
+        return f"{sign}${magnitude / 1_000_000:.3f}M"
     return _currency(number)
 
 
@@ -448,3 +501,8 @@ def _ratio(numerator: object, denominator: object) -> str:
     if first is None or second in (None, 0):
         return "N/A"
     return f"{first / second:.3f}x"
+
+
+def _multiple(value: object) -> str:
+    number = _numeric(value)
+    return "N/A" if number is None else f"{number:.3f}x"

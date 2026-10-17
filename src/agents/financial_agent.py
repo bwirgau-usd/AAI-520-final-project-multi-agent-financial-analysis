@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from src.agents.analysis_quality import evidence_based_fallback
 from src.state import ResearchPlan
 
 Tool = Callable[[str], dict[str, Any]]
@@ -37,6 +38,9 @@ class FinancialResearchAgent:
         balance_latest = (
             balance.get("latest", {}) if isinstance(balance, Mapping) else {}
         )
+        balance_trends = (
+            balance.get("trends", {}) if isinstance(balance, Mapping) else {}
+        )
         return {
             "specialist": "financial",
             "observations": observations,
@@ -45,6 +49,11 @@ class FinancialResearchAgent:
                 "cash_and_debt": (
                     dict(balance_latest)
                     if isinstance(balance_latest, Mapping)
+                    else {}
+                ),
+                "balance_sheet_trends": (
+                    dict(balance_trends)
+                    if isinstance(balance_trends, Mapping)
                     else {}
                 ),
                 "has_sec_evidence": bool(
@@ -76,17 +85,11 @@ def _run_tools(
 def analyze_earnings_article(article: Mapping[str, Any]) -> dict[str, Any]:
     """Build a grounded fallback analysis for earnings content."""
 
-    extracted = _mapping(article.get("extracted"))
-    return {
-        "specialist": "earnings",
-        "observations": [
-            f"Financial figures: {_joined(extracted.get('financial_numbers'))}",
-            f"Events: {_joined(extracted.get('events'))}",
-        ],
-        "interpretation": "",
-        "uncertainties": [],
-        "focus": "Revenue, earnings, EPS, profitability, and guidance.",
-    }
+    return evidence_based_fallback(
+        article,
+        specialist="earnings",
+        focus="Revenue, earnings, EPS, profitability, and guidance.",
+    )
 
 
 def _mapping(value: object) -> Mapping[str, Any]:

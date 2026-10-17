@@ -6,6 +6,12 @@ import json
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
+from src.agents.analysis_quality import (
+    evidence_based_fallback,
+    grounded_observations,
+    meaningful_text,
+    meaningful_text_list,
+)
 from src.llm import parse_json_object
 from src.tools.news_tools import articles_retrieved_at, get_company_news
 
@@ -43,31 +49,27 @@ Rules:
 - Do not invent facts or financial figures.
 - Do not predict the stock price or recommend buy, sell, or hold.
 """.strip()
-        parsed = parse_json_object(self._llm(prompt), fallback=fallback)
+        parsed = parse_json_object(self._llm(prompt), fallback={})
+        proposed = meaningful_text_list(parsed.get("observations"))
+        observations, _ = grounded_observations(proposed, article)
         return {
             "specialist": specialist,
-            "observations": _string_list(parsed.get("observations"))
-            or _string_list(fallback.get("observations")),
-            "interpretation": _string(parsed.get("interpretation")),
-            "uncertainties": _string_list(parsed.get("uncertainties")),
-            "focus": _string(parsed.get("focus")) or _string(fallback.get("focus")),
+            "observations": observations,
+            "interpretation": meaningful_text(parsed.get("interpretation")),
+            "uncertainties": meaningful_text_list(parsed.get("uncertainties")),
+            "focus": meaningful_text(parsed.get("focus"))
+            or meaningful_text(fallback.get("focus")),
         }
 
 
 def analyze_general_news_article(article: Mapping[str, Any]) -> dict[str, Any]:
     """Build a grounded fallback analysis for general company news."""
 
-    extracted = _mapping(article.get("extracted"))
-    return {
-        "specialist": "news",
-        "observations": [
-            f"Events: {_joined(extracted.get('events'))}",
-            f"Keywords: {_joined(extracted.get('keywords'))}",
-        ],
-        "interpretation": "",
-        "uncertainties": [],
-        "focus": "General company developments and material events.",
-    }
+    return evidence_based_fallback(
+        article,
+        specialist="news",
+        focus="General company developments and material events.",
+    )
 
 
 def run_news_agent(

@@ -32,10 +32,10 @@ class FakeFinancialClient:
 
     def get_balance_sheet(self, symbol):
         return {
-            "Cash And Cash Equivalents": {"2025": 125.0},
-            "Total Debt": {"2025": 50.0},
-            "Total Assets": {"2025": 800.0},
-            "Stockholders Equity": {"2025": 300.0},
+            "Cash And Cash Equivalents": {"2025": 125.0, "2024": 100.0},
+            "Total Debt": {"2025": 50.0, "2024": 40.0},
+            "Total Assets": {"2025": 800.0, "2024": 750.0},
+            "Stockholders Equity": {"2025": 300.0, "2024": 250.0},
         }
 
 
@@ -90,6 +90,11 @@ class TestFinancialTools(unittest.TestCase):
         self.assertEqual(result["latest"]["debt"], 50.0)
         self.assertEqual(result["latest"]["net_debt"], -75.0)
         self.assertEqual(result["latest"]["cash_to_debt_ratio"], 2.5)
+        self.assertEqual(result["trends"]["cash_growth_percent"], 25.0)
+        self.assertEqual(result["trends"]["debt_growth_percent"], 25.0)
+        self.assertEqual(result["trends"]["assets_growth_percent"], 6.67)
+        self.assertEqual(result["trends"]["equity_growth_percent"], 20.0)
+        self.assertEqual(result["trends"]["latest_period"], "2025")
 
     def test_calculates_revenue_and_earnings_growth(self):
         result = get_financial_growth(FakeFinancialClient(), "AAPL")

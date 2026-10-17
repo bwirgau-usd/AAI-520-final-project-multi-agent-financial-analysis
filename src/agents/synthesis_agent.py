@@ -6,6 +6,10 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from src.reporting.verified_metrics import (
+    reconcile_report_financial_values,
+    verified_financial_metrics,
+)
 from src.state import Reflection, ResearchPlan, ValidationIssue
 
 
@@ -26,6 +30,8 @@ class SynthesisAgent:
         specialist_analyses: Mapping[str, Any] | None = None,
     ) -> str:
         """Generate a grounded Markdown research report."""
+
+        verified_metrics = verified_financial_metrics(observations)
 
         prompt = f"""
 Write a concise, evidence-based investment research report for {symbol} in
@@ -49,6 +55,10 @@ Deterministic validation:
 
 Specialist analyses:
 {json.dumps(specialist_analyses or {}, default=str)}
+
+Canonical financial metrics (copy these formatted values exactly; never
+recalculate, rescale, abbreviate, or change their digits):
+{json.dumps(verified_metrics, default=str)}
 
 Use these headings: Company Overview, Price Performance, Valuation and
 Profitability, Financial Performance, Cash Flow, SEC EDGAR Evidence, Dividend,
@@ -83,6 +93,8 @@ Strict rules:
   unsupported predictions.
 - Preserve supplied units and make every numerical claim traceable to the
   observations.
+- Treat the canonical financial metrics as authoritative. Do not perform
+  arithmetic on financial-statement values or dividend yield.
 - Clearly distinguish facts from interpretation and explicitly flag suspicious
   values as requiring verification.
 - Never claim a field is missing when it exists in the observations.
@@ -96,4 +108,4 @@ Strict rules:
         report = self._llm(prompt).strip()
         if not report:
             raise RuntimeError("The synthesis model returned an empty report.")
-        return report
+        return reconcile_report_financial_values(report, observations)

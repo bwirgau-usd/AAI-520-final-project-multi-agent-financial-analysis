@@ -6,19 +6,36 @@ import json
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from src.agents.analysis_quality import (
+    evidence_based_fallback,
+    grounded_observations,
+    meaningful_text,
+    meaningful_text_list,
+)
 from src.llm import parse_json_object
+from src.reporting.verified_metrics import (
+    append_verified_interpretation,
+    reconcile_report_financial_values,
+)
 
 
 def evaluate_analysis(
     analysis: Mapping[str, Any],
     *,
+    article: Mapping[str, Any] | None = None,
     threshold: float = 75,
 ) -> dict[str, Any]:
-    """Apply the notebook's four-part, 100-point analysis rubric."""
+    """Apply the four-part rubric after rejecting placeholders and inventions."""
 
-    observations = _string_list(analysis.get("observations"))
-    interpretation = _string(analysis.get("interpretation"))
-    uncertainties = _string_list(analysis.get("uncertainties"))
+    observations = meaningful_text_list(analysis.get("observations"))
+    rejected_observations: list[str] = []
+    if article is not None:
+        observations, rejected_observations = grounded_observations(
+            observations,
+            article,
+        )
+    interpretation = meaningful_text(analysis.get("interpretation"))
+    uncertainties = meaningful_text_list(analysis.get("uncertainties"))
     score = 0
     feedback: list[str] = []
 
@@ -26,6 +43,10 @@ def evaluate_analysis(
         score += 25
     else:
         feedback.append("Add concrete observations from the article.")
+    if rejected_observations:
+        feedback.append(
+            "Remove or correct observations that are not supported by article evidence."
+        )
     if interpretation:
         score += 25
     else:
@@ -41,9 +62,11 @@ def evaluate_analysis(
 
     return {
         "score": score,
-        "passed": score >= threshold,
+        "passed": score >= threshold and bool(observations),
         "threshold": threshold,
         "feedback": feedback,
+        "grounded_observations": observations,
+        "rejected_observations": rejected_observations,
     }
 
 
@@ -79,22 +102,33 @@ and improvements.
 Use only supplied evidence. Do not invent facts or financial figures, remove
 uncertainty, predict stock prices, or recommend buy, sell, or hold.
 """.strip()
-        fallback = {
-            **dict(analysis),
-            "improvements": _string_list(evaluation.get("feedback")),
-        }
+        evidence_fallback = evidence_based_fallback(
+            article,
+            specialist=meaningful_text(analysis.get("specialist")) or "news",
+            focus=meaningful_text(analysis.get("focus"))
+            or "the reported company development",
+        )
+        fallback = {**evidence_fallback, **dict(analysis)}
+        fallback["improvements"] = meaningful_text_list(evaluation.get("feedback"))
         parsed = parse_json_object(self._llm(prompt), fallback=fallback)
+        proposed_observations = meaningful_text_list(parsed.get("observations"))
+        grounded, _ = grounded_observations(proposed_observations, article)
+        if not grounded:
+            existing = meaningful_text_list(analysis.get("observations"))
+            grounded, _ = grounded_observations(existing, article)
+        grounded = list(
+            dict.fromkeys([*grounded, *evidence_fallback["observations"]])
+        )
         return {
-            "specialist": _string(parsed.get("specialist"))
-            or _string(analysis.get("specialist")),
-            "observations": _string_list(parsed.get("observations"))
-            or _string_list(analysis.get("observations")),
-            "interpretation": _string(parsed.get("interpretation"))
-            or _string(analysis.get("interpretation")),
-            "uncertainties": _string_list(parsed.get("uncertainties"))
-            or _string_list(analysis.get("uncertainties")),
-            "improvements": _string_list(parsed.get("improvements"))
-            or _string_list(evaluation.get("feedback")),
+            "specialist": meaningful_text(parsed.get("specialist"))
+            or evidence_fallback["specialist"],
+            "observations": grounded,
+            "interpretation": meaningful_text(parsed.get("interpretation"))
+            or evidence_fallback["interpretation"],
+            "uncertainties": meaningful_text_list(parsed.get("uncertainties"))
+            or evidence_fallback["uncertainties"],
+            "improvements": meaningful_text_list(parsed.get("improvements"))
+            or meaningful_text_list(evaluation.get("feedback")),
         }
 
     def optimize_report(
@@ -132,14 +166,8 @@ attribution. Use only supplied evidence, state uncertainty, and do not add
 personalized investment advice or buy/sell/hold language.
 """.strip()
         revised = self._llm(prompt).strip()
-        return revised or report
-
-
-def _string(value: object) -> str:
-    return value.strip() if isinstance(value, str) else ""
-
-
-def _string_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+        reconciled = reconcile_report_financial_values(
+            revised or report,
+            observations,
+        )
+        return append_verified_interpretation(reconciled, observations)

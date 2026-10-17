@@ -13,7 +13,8 @@ def _strong_market_report() -> str:
 
 ## Request and evidence
 The requested price and volatility analysis uses Yahoo Finance source evidence.
-The latest observed price is 110, compared with 100 initially, for a 10% return.
+The latest observed price is $110.00, compared with 100 initially, for a 10.00%
+one-year return.
 One-month return is 2%, three-month return is 6%, and annualized volatility is
 22%. Volume is 1,200 versus average volume of 1,000. The 52-week range is 80 to
 120, according to the supplied observations at https://finance.yahoo.com.
@@ -191,3 +192,52 @@ def test_graph_revises_and_re_evaluates_the_complete_report(tmp_path):
         "report_revision_history"
     ][0]["before_score"]
     assert result["graph_trace"].count("evaluate_report") == 2
+
+
+class RegressingRevisionLlm(RevisionLlm):
+    def __init__(self):
+        self.revision_count = 0
+
+    def __call__(self, prompt):
+        if "Revise this complete" in prompt:
+            self.revision_count += 1
+            if self.revision_count == 1:
+                return (
+                    _strong_market_report()
+                    .replace(
+                        "Yahoo Finance source evidence",
+                        "provider evidence",
+                    )
+                    .replace(
+                        "https://finance.yahoo.com",
+                        "the provider dataset",
+                    )
+                    .replace("Source coverage", "Coverage")
+                )
+            return "# Worse revision\n\nPrice is discussed without adequate support."
+        return super().__call__(prompt)
+
+
+def test_graph_keeps_the_best_report_when_a_later_revision_regresses(tmp_path):
+    workflow = build_research_workflow(
+        llm=RegressingRevisionLlm(),
+        tools={
+            "price_data": lambda _symbol: {
+                "latest_price": 110,
+                "1y_return_percent": 10,
+            }
+        },
+        memory_store=ResearchMemoryStore(tmp_path / "memory.json"),
+        max_report_revisions=2,
+    )
+
+    result = workflow.run(
+        "AAPL",
+        "Analyze market price, return, and volatility",
+        remember=False,
+    )
+
+    scores = [item["score"] for item in result["report_evaluation_history"]]
+    assert len(scores) == 3
+    assert result["report_evaluation"]["score"] == max(scores)
+    assert "Worse revision" not in result["report"]
