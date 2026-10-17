@@ -2,9 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from numbers import Number
 from typing import Any, TypedDict
+
+_SCOPED_VERIFICATION_CLAIM = (
+    "SEC facts provide primary-source evidence for selected financial metrics. "
+    "Market data and news remain provider-supplied and require independent "
+    "verification."
+)
 
 
 class VerifiedMetric(TypedDict):
@@ -97,7 +104,7 @@ def verified_financial_metrics(
         ("Operating Income", "Operating Income", financials, _currency, "USD"),
         ("Net Income", "Net Income", financials, _currency, "USD"),
         ("EBITDA", "EBITDA", financials, _currency, "USD"),
-        ("Diluted EPS", "Diluted EPS", financials, _currency, "USD/share"),
+        ("Diluted EPS", "Diluted EPS", financials, _price, "USD/share"),
         (
             "Operating Cash Flow",
             "Operating Cash Flow",
@@ -260,6 +267,16 @@ def reconcile_report_financial_values(
 ) -> str:
     """Replace model-authored financial figures with a canonical section."""
 
+    report = _qualify_article_score_labels(_qualify_verification_claim(report))
+    sec = _mapping(observations.get("sec_edgar"))
+    if (
+        sec.get("official_company_facts")
+        and _SCOPED_VERIFICATION_CLAIM.casefold() not in report.casefold()
+    ):
+        report = (
+            f"{report.rstrip()}\n\n## Verification Scope\n\n"
+            f"{_SCOPED_VERIFICATION_CLAIM}"
+        )
     metrics = verified_financial_metrics(observations)
     if not metrics:
         return report
@@ -301,7 +318,9 @@ def append_verified_interpretation(
     """Append deterministic cross-domain reasoning to an optimized report."""
 
     price = _mapping(observations.get("price_data"))
-    balance = _mapping(_mapping(observations.get("balance_sheet")).get("latest"))
+    balance_sheet = _mapping(observations.get("balance_sheet"))
+    balance = _mapping(balance_sheet.get("latest"))
+    balance_trends = _mapping(balance_sheet.get("trends"))
     growth = _mapping(observations.get("financial_growth"))
     sec = _mapping(observations.get("sec_edgar"))
     news = _mapping(observations.get("news_analysis"))
@@ -358,19 +377,67 @@ def append_verified_interpretation(
             "periods should be compared explicitly before drawing conclusions."
         )
 
+    yahoo_equity = _number(balance.get("stockholders_equity"))
+    yahoo_period = _optional_period(balance_trends.get("latest_period"))
+    sec_equity = _mapping(_mapping(facts).get("Stockholders Equity"))
+    sec_equity_value = _number(sec_equity.get("value"))
+    if yahoo_equity is not None and sec_equity_value is not None:
+        sec_period_parts = [
+            part
+            for part in (
+                (
+                    f"fiscal {sec_equity.get('fiscal_year')}"
+                    if sec_equity.get("fiscal_year") not in (None, "")
+                    else ""
+                ),
+                str(sec_equity.get("fiscal_period") or ""),
+                (
+                    f"ended {sec_equity.get('period_end')}"
+                    if sec_equity.get("period_end") not in (None, "")
+                    else ""
+                ),
+            )
+            if part
+        ]
+        yahoo_period_text = f" for {yahoo_period}" if yahoo_period else ""
+        sec_period_text = (
+            f" for {' '.join(sec_period_parts)}" if sec_period_parts else ""
+        )
+        paragraphs.append(
+            "Yahoo Finance reports stockholders' equity of "
+            f"{_currency(yahoo_equity)}{yahoo_period_text}, while SEC company "
+            f"facts report {_currency(sec_equity_value)}{sec_period_text}. "
+            "These values describe different reporting periods and provider "
+            "snapshots and should not be treated as the same balance-sheet date."
+        )
+
     article_count = _number(news.get("article_count"))
-    average_score = _number(news.get("average_score"))
+    average_structural_score = _number(
+        news.get("average_structural_score", news.get("average_score"))
+    )
+    average_substantive_score = _number(
+        news.get("average_substantive_reasoning_score")
+    )
     if article_count is not None and article_count > 0:
-        score_text = (
-            f" with an average grounded-analysis score of {_percent(average_score)}"
-            if average_score is not None
+        structural_text = (
+            " The structural completeness and source-traceability rubric "
+            f"averaged {_percent(average_structural_score)}."
+            if average_structural_score is not None
+            else ""
+        )
+        substantive_text = (
+            " The separate substantive financial-reasoning and event-significance "
+            f"score averaged {_percent(average_substantive_score)}."
+            if average_substantive_score is not None
             else ""
         )
         paragraphs.append(
-            f"The news workflow processed {_integer(article_count)} article(s)"
-            f"{score_text}. Because provider payloads may contain only headlines "
-            "or snippets, the detected events remain a source of uncertainty and "
-            "should be verified at the linked publishers."
+            f"The news workflow processed {_integer(article_count)} article(s)."
+            f"{structural_text}{substantive_text} A 100% structural score means "
+            "the expected fields and traceable source evidence were present; it "
+            "does not establish perfect financial analysis. Because provider "
+            "payloads may contain only headlines or snippets, detected events "
+            "remain uncertain and should be verified at the linked publishers."
         )
 
     if not paragraphs:
@@ -413,6 +480,32 @@ def _remove_markdown_section(report: str, heading: str) -> str:
     return "\n".join(retained)
 
 
+def _qualify_verification_claim(report: str) -> str:
+    """Replace an unsupported universal verification claim with scoped wording."""
+
+    return re.sub(
+        r"all data is verified with official company filings and primary sources\. ?",
+        _SCOPED_VERIFICATION_CLAIM,
+        report,
+        flags=re.IGNORECASE,
+    )
+
+
+def _qualify_article_score_labels(report: str) -> str:
+    """Make clear that article scores are structural, not overall quality grades."""
+
+    report = re.sub(
+        r"(?i)average evaluation score:",
+        "Average Structural Completeness/Traceability Score:",
+        report,
+    )
+    return re.sub(
+        r"(?i)evaluator score:",
+        "Structural Completeness/Traceability Score:",
+        report,
+    )
+
+
 def _mapping(value: object) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
@@ -438,7 +531,9 @@ def _number(value: object) -> float | None:
 
 
 def _optional_period(value: object) -> str | None:
-    return str(value) if value not in (None, "") else None
+    if value in (None, ""):
+        return None
+    return str(value).removesuffix(" 00:00:00")
 
 
 def _growth_period(values: Mapping[str, Any]) -> str | None:

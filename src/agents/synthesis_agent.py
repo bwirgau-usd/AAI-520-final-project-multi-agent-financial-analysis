@@ -95,6 +95,14 @@ Strict rules:
   observations.
 - Treat the canonical financial metrics as authoritative. Do not perform
   arithmetic on financial-statement values or dividend yield.
+- State verification scope precisely: SEC facts provide primary-source evidence
+  for selected financial metrics; market data and news are provider-supplied and
+  require independent verification. Never claim all data was verified.
+- When provider and SEC balance-sheet values use different reporting periods,
+  label both periods and explain that they are not the same snapshot.
+- Describe article evaluator scores as structural completeness and source
+  traceability. Discuss the separate substantive financial-reasoning and
+  event-significance score; a 100 structural score is not perfect analysis.
 - Clearly distinguish facts from interpretation and explicitly flag suspicious
   values as requiring verification.
 - Never claim a field is missing when it exists in the observations.

@@ -205,6 +205,12 @@ class ResearchWorkflow:
                 "news": {
                     "article_count": news_analysis.get("article_count", 0),
                     "average_score": news_analysis.get("average_score"),
+                    "average_structural_score": news_analysis.get(
+                        "average_structural_score"
+                    ),
+                    "average_substantive_reasoning_score": news_analysis.get(
+                        "average_substantive_reasoning_score"
+                    ),
                     "routing_counts": news_analysis.get("routing_counts", {}),
                 }
             },
@@ -231,6 +237,12 @@ class ResearchWorkflow:
             analyses["news"] = {
                 "article_count": news_analysis.get("article_count", 0),
                 "average_score": news_analysis.get("average_score"),
+                "average_structural_score": news_analysis.get(
+                    "average_structural_score"
+                ),
+                "average_substantive_reasoning_score": news_analysis.get(
+                    "average_substantive_reasoning_score"
+                ),
                 "routing_counts": news_analysis.get("routing_counts", {}),
             }
             updates["news_analysis"] = news_analysis

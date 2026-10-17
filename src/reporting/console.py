@@ -10,7 +10,11 @@ from typing import Any
 from src.state import ResearchState
 
 
-def render_console_summary(state: ResearchState) -> str:
+def render_console_summary(
+    state: ResearchState,
+    *,
+    include_article_details: bool = True,
+) -> str:
     """Render the notebook's former console report without printing it."""
 
     symbol = state.get("symbol", "UNKNOWN")
@@ -183,7 +187,12 @@ def render_console_summary(state: ResearchState) -> str:
     )
 
     lines.extend(["", "9. RECENT NEWS AND CATALYSTS"])
-    lines.extend(_news_analysis_lines(news_analysis))
+    lines.extend(
+        _news_analysis_lines(
+            news_analysis,
+            include_article_details=include_article_details,
+        )
+    )
 
     risk_issues = [
         _issue_message(issue)
@@ -287,7 +296,11 @@ def _sec_filing_lines(value: object) -> list[str]:
     return lines
 
 
-def _news_analysis_lines(news: Mapping[str, Any]) -> list[str]:
+def _news_analysis_lines(
+    news: Mapping[str, Any],
+    *,
+    include_article_details: bool = True,
+) -> list[str]:
     if news.get("error"):
         return [f"   Unavailable:          {news['error']}"]
     if not news:
@@ -300,7 +313,14 @@ def _news_analysis_lines(news: Mapping[str, Any]) -> list[str]:
         f"   Retrieved Counts:    {_mapping_text(news.get('retrieved_counts'))}",
         f"   Source Counts:       {_mapping_text(news.get('source_counts'))}",
         f"   Routing Counts:      {_mapping_text(news.get('routing_counts'))}",
-        f"   Average Score:       {_score(news.get('average_score'))}",
+        (
+            "   Avg Structural Score: "
+            f"{_score(news.get('average_structural_score', news.get('average_score')))}"
+        ),
+        (
+            "   Avg Substantive Score: "
+            f"{_score(news.get('average_substantive_reasoning_score'))}"
+        ),
         f"   Passed Evaluations:  {_number(news.get('passed_count'), 0)}",
         f"   Score Threshold:     {_score(news.get('evaluation_threshold'))}",
         (f"   Optimizer Limit:     {_number(news.get('max_optimizer_iterations'), 0)}"),
@@ -312,6 +332,15 @@ def _news_analysis_lines(news: Mapping[str, Any]) -> list[str]:
     articles = news.get("articles")
     if not isinstance(articles, list) or not articles:
         lines.append("   No current company news articles were available.")
+        return lines
+    lines.append(
+        "   Score Meaning:       Structural scores measure completeness and "
+        "traceability, not perfect financial analysis."
+    )
+    if not include_article_details:
+        lines.append(
+            "   Article Details:    Saved in the companion audit HTML artifact."
+        )
         return lines
 
     for index, raw_article in enumerate(articles, start=1):
@@ -339,9 +368,14 @@ def _news_analysis_lines(news: Mapping[str, Any]) -> list[str]:
                 f"      Figures: {_text(summary.get('financial_figures'))}",
                 f"      Keywords: {_text(summary.get('keywords'))}",
                 (
-                    "      Evaluation: "
+                    "      Structural Evaluation: "
                     f"{_score(evaluation.get('score'))}; "
                     f"passed={bool(evaluation.get('passed'))}"
+                ),
+                (
+                    "      Substantive Reasoning: "
+                    f"{_score(evaluation.get('substantive_reasoning_score'))}; "
+                    "financial reasoning and event significance"
                 ),
             ]
         )

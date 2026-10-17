@@ -284,6 +284,21 @@ missing_information, suspicious_values, and follow_up_questions.
                 }
             )
 
+        if (
+            "all data is verified with official company filings and primary sources"
+            in normalized_report.casefold()
+        ):
+            issues.append(
+                {
+                    "type": "overstated_verification_claim",
+                    "message": (
+                        "The report overstates verification. SEC facts verify selected "
+                        "financial metrics, while market and news data remain "
+                        "provider-supplied."
+                    ),
+                }
+            )
+
         cash_flow = observations.get("cash_flow")
         has_cash_data = (
             _find_value(

@@ -81,11 +81,21 @@ planning context, never as current market evidence.
             *selected_tools,
             *(name for name in tool_names if name not in selected_tools),
         ]
+        questions = _string_list(parsed.get("questions")) or fallback["questions"]
+        if _memory_calls_for_source_traceability(memories) and not any(
+            "filing-level citation" in question.casefold()
+            or "provider source url" in question.casefold()
+            for question in questions
+        ):
+            questions.append(
+                "Which material claims can be linked to filing-level citations "
+                "or provider source URLs?"
+            )
         return {
             "objectives": _string_list(parsed.get("objectives"))
             or fallback["objectives"],
             "tools": required_tools,
-            "questions": _string_list(parsed.get("questions")) or fallback["questions"],
+            "questions": questions,
             "research_request": request,
             "route": route,
             "specialists": list(specialists),
@@ -97,3 +107,23 @@ def _string_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
+def _memory_calls_for_source_traceability(
+    memories: list[dict[str, object]],
+) -> bool:
+    """Return whether saved feedback explicitly requests stronger sourcing."""
+
+    memory_text = json.dumps(memories, default=str).casefold().replace("-", " ")
+    return bool(memories) and any(
+        marker in memory_text
+        for marker in (
+            "source traceability",
+            "primary source",
+            "filing citation",
+            "filing-level citation",
+            "source link",
+            "linked source",
+            "citation",
+        )
+    )

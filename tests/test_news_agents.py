@@ -86,6 +86,34 @@ class TestNewsAgents(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertEqual(result["rejected_observations"], ["Profit doubled."])
 
+    def test_structural_score_does_not_overstate_generic_headline_analysis(self):
+        article = {
+            "title": "Example announces an update",
+            "source": "Example Wire",
+            "published_at": "2026-10-01",
+        }
+        result = evaluate_analysis(
+            {
+                "observations": [
+                    "Headline: Example announces an update",
+                    "Source and date: Example Wire, 2026-10-01",
+                ],
+                "interpretation": (
+                    "The supplied article provides evidence relevant to the "
+                    "reported company development; its investment significance "
+                    "requires corroboration with primary financial data."
+                ),
+                "uncertainties": ["Only headline metadata was supplied."],
+            },
+            article=article,
+        )
+
+        self.assertEqual(result["score"], 100)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["substantive_reasoning_score"], 0)
+        self.assertFalse(result["substantive_reasoning_passed"])
+        self.assertIn("Structural completeness passed", result["feedback"][-1])
+
     def test_optimizer_uses_feedback_and_preserves_grounding_fields(self):
         response = json.dumps(
             {
@@ -127,7 +155,12 @@ class TestNewsAgents(unittest.TestCase):
                 "official_company_facts": {"Assets": {"value": 200.0}},
                 "recent_filings": [{"form": "10-Q"}],
             },
-            "news_analysis": {"article_count": 2, "average_score": 75.0},
+            "news_analysis": {
+                "article_count": 2,
+                "average_score": 75.0,
+                "average_structural_score": 75.0,
+                "average_substantive_reasoning_score": 50.0,
+            },
         }
 
         report = optimizer.optimize_report(
@@ -144,6 +177,9 @@ class TestNewsAgents(unittest.TestCase):
         self.assertIn("Cash of $80", report)
         self.assertIn("SEC EDGAR supplied 1 official company fact", report)
         self.assertIn("news workflow processed 2 article", report)
+        self.assertIn("structural completeness", report)
+        self.assertIn("substantive financial-reasoning", report)
+        self.assertIn("does not establish perfect financial analysis", report)
 
 
 if __name__ == "__main__":

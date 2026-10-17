@@ -11,6 +11,7 @@ from src.agents.analysis_quality import (
     grounded_observations,
     meaningful_text,
     meaningful_text_list,
+    substantive_reasoning_score,
 )
 from src.llm import parse_json_object
 from src.reporting.verified_metrics import (
@@ -60,13 +61,29 @@ def evaluate_analysis(
     else:
         feedback.append("Include at least two evidence-based observations.")
 
+    substantive_score = substantive_reasoning_score(observations, interpretation)
+    if score >= threshold and substantive_score < threshold:
+        feedback.append(
+            "Structural completeness passed, but substantive financial reasoning "
+            "or event-significance analysis remains limited."
+        )
+
     return {
         "score": score,
+        "score_type": "structural_completeness_and_source_traceability",
         "passed": score >= threshold and bool(observations),
         "threshold": threshold,
         "feedback": feedback,
         "grounded_observations": observations,
         "rejected_observations": rejected_observations,
+        "substantive_reasoning_score": substantive_score,
+        "substantive_reasoning_passed": substantive_score >= threshold,
+        "quality_dimensions": {
+            "structural_completeness_and_source_traceability": score,
+            "substantive_financial_reasoning_and_event_significance": (
+                substantive_score
+            ),
+        },
     }
 
 

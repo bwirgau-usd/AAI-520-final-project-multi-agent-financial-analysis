@@ -153,6 +153,10 @@ class NewsPipeline:
             float(article["evaluation"].get("score", 0))
             for article in processed_articles
         ]
+        substantive_scores = [
+            float(article["evaluation"].get("substantive_reasoning_score", 0))
+            for article in processed_articles
+        ]
         return {
             "ticker": normalized_symbol,
             "retrieved_at": datetime.now(timezone.utc).isoformat(),
@@ -174,6 +178,19 @@ class NewsPipeline:
             "source_counts": dict(source_counts),
             "routing_counts": dict(routing_counts),
             "average_score": sum(scores) / len(scores) if scores else None,
+            "average_structural_score": (
+                sum(scores) / len(scores) if scores else None
+            ),
+            "average_substantive_reasoning_score": (
+                sum(substantive_scores) / len(substantive_scores)
+                if substantive_scores
+                else None
+            ),
+            "score_scope": (
+                "Structural completeness and source traceability are scored "
+                "separately from substantive financial reasoning and event "
+                "significance."
+            ),
             "passed_count": sum(
                 bool(article["evaluation"].get("passed"))
                 for article in processed_articles

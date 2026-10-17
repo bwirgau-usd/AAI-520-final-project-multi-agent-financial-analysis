@@ -79,6 +79,8 @@ class TestNewsPipeline(unittest.TestCase):
         self.assertEqual(result["source_counts"], {"Yahoo Finance": 1})
         self.assertEqual(result["routing_counts"], {"earnings": 1})
         self.assertEqual(result["average_score"], 100)
+        self.assertEqual(result["average_structural_score"], 100)
+        self.assertEqual(result["average_substantive_reasoning_score"], 100)
         self.assertEqual(result["passed_count"], 1)
         article = result["articles"][0]
         self.assertEqual(article["category"], "earnings")
@@ -113,6 +115,8 @@ class TestNewsPipeline(unittest.TestCase):
         self.assertEqual(result["articles"], [])
         self.assertEqual(result["article_count"], 0)
         self.assertIsNone(result["average_score"])
+        self.assertIsNone(result["average_structural_score"])
+        self.assertIsNone(result["average_substantive_reasoning_score"])
         self.assertEqual(result["pipeline_stages"][-1], "optimize")
 
 

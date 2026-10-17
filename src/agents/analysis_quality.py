@@ -67,6 +67,32 @@ _STOPWORDS = frozenset(
     }
 )
 
+_METADATA_OBSERVATION_PREFIXES = (
+    "headline:",
+    "source:",
+    "source and date:",
+)
+_GENERIC_INTERPRETATION_PHRASES = (
+    "provides evidence relevant to",
+    "requires corroboration",
+    "too limited for a supported interpretation",
+)
+_REASONING_MARKERS = (
+    "because",
+    "therefore",
+    "suggest",
+    "indicat",
+    "imply",
+    "impact",
+    "risk",
+    "margin",
+    "revenue",
+    "earnings",
+    "cash flow",
+    "debt",
+    "valuation",
+)
+
 
 def meaningful_text(value: object) -> str:
     """Return normalized text, rejecting null-like placeholders."""
@@ -119,6 +145,37 @@ def grounded_observations(
         )
         (accepted if is_grounded else rejected).append(observation)
     return accepted, rejected
+
+
+def substantive_reasoning_score(
+    observations: object,
+    interpretation: object,
+) -> int:
+    """Score financial substance separately from structural completeness.
+
+    Headline and source metadata are useful for traceability, but they do not
+    themselves demonstrate financial reasoning. This deliberately small rubric
+    makes that distinction visible without changing the structural gate used by
+    the optimizer loop.
+    """
+
+    evidence = meaningful_text_list(observations)
+    substantive_evidence = [
+        item
+        for item in evidence
+        if not item.casefold().startswith(_METADATA_OBSERVATION_PREFIXES)
+    ]
+    interpretation_text = meaningful_text(interpretation).casefold()
+    is_generic = any(
+        phrase in interpretation_text
+        for phrase in _GENERIC_INTERPRETATION_PHRASES
+    )
+    has_reasoning = any(
+        marker in interpretation_text for marker in _REASONING_MARKERS
+    )
+    return (50 if substantive_evidence else 0) + (
+        50 if interpretation_text and not is_generic and has_reasoning else 0
+    )
 
 
 def evidence_based_fallback(

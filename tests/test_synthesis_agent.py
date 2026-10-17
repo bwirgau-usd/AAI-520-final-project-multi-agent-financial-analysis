@@ -3,6 +3,7 @@
 import unittest
 
 from src.agents.synthesis_agent import SynthesisAgent
+from src.reporting.verified_metrics import append_verified_interpretation
 
 
 class TestSynthesisAgent(unittest.TestCase):
@@ -80,6 +81,8 @@ $987,670,000
 
 ### Dividend Yield
 0.32
+
+- Verified: All data is verified with official company filings and primary sources.
 """
 
         report = SynthesisAgent(llm).create_report(
@@ -89,6 +92,7 @@ $987,670,000
                 "financials": {
                     "Net Income": {"2025-09-30": 112_010_000_000},
                     "EBITDA": {"2025-09-30": 144_748_000_000},
+                    "Diluted EPS": {"2025-09-30": 7.46},
                 },
                 "cash_flow": {
                     "Free Cash Flow": {"2025-09-30": 98_767_000_000},
@@ -114,6 +118,75 @@ $987,670,000
         self.assertIn("-$12,715,000,000", report)
         self.assertIn("1.292x", report)
         self.assertIn("0.32%", report)
+        self.assertIn("**Diluted EPS** (2025-09-30): $7.46", report)
+        self.assertNotIn("**Diluted EPS** (2025-09-30): $7\n", report)
+        self.assertNotIn("All data is verified", report)
+        self.assertIn(
+            "SEC facts provide primary-source evidence for selected financial metrics",
+            report,
+        )
+
+    def test_reconciles_yahoo_and_sec_equity_as_different_periods(self):
+        report = SynthesisAgent(lambda _prompt: "# Report").create_report(
+            "AAPL",
+            {"objectives": [], "tools": [], "questions": []},
+            {
+                "balance_sheet": {
+                    "latest": {"stockholders_equity": 73_733_000_000},
+                    "trends": {"latest_period": "2025-09-30"},
+                },
+                "sec_edgar": {
+                    "official_company_facts": {
+                        "Stockholders Equity": {
+                            "value": 107_520_000_000,
+                            "fiscal_year": 2026,
+                            "fiscal_period": "Q3",
+                            "period_end": "2026-06-27",
+                        }
+                    },
+                    "recent_filings": [],
+                },
+            },
+            {
+                "strengths": [],
+                "weaknesses": [],
+                "missing_information": [],
+                "suspicious_values": [],
+                "follow_up_questions": [],
+                "deterministic_issues": [],
+            },
+            [],
+        )
+
+        report = append_verified_interpretation(
+            report,
+            {
+                "balance_sheet": {
+                    "latest": {"stockholders_equity": 73_733_000_000},
+                    "trends": {"latest_period": "2025-09-30"},
+                },
+                "sec_edgar": {
+                    "official_company_facts": {
+                        "Stockholders Equity": {
+                            "value": 107_520_000_000,
+                            "fiscal_year": 2026,
+                            "fiscal_period": "Q3",
+                            "period_end": "2026-06-27",
+                        }
+                    },
+                    "recent_filings": [],
+                },
+            },
+        )
+
+        self.assertIn("$73,733,000,000 for 2025-09-30", report)
+        self.assertIn("$107,520,000,000 for fiscal 2026 Q3 ended 2026-06-27", report)
+        self.assertIn("different reporting periods", report)
+        self.assertIn("## Verification Scope", report)
+        self.assertIn(
+            "Market data and news remain provider-supplied and require independent",
+            report,
+        )
 
     def test_reconciles_market_scale_and_ratio_values(self):
         def llm(_prompt):
