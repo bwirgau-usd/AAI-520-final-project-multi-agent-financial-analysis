@@ -13,11 +13,22 @@ from src.data_sources.base import Statement
 
 INCOME_ROWS = (
     "Total Revenue",
+    "Operating Expenses",
     "Operating Income",
     "Net Income",
     "EBITDA",
     "Diluted EPS",
 )
+
+OPERATING_EXPENSE_ROWS = (
+    "Operating Expenses",
+    "Total Operating Expenses",
+    "Operating Expense",
+    "Total Operating Expense",
+)
+
+GROSS_PROFIT_ROWS = ("Gross Profit",)
+OPERATING_INCOME_ROWS = ("Operating Income", "Operating Income Loss")
 
 CASH_FLOW_ROWS = (
     "Operating Cash Flow",
@@ -62,6 +73,7 @@ def _select_rows(
     wanted_rows: tuple[str, ...],
     *,
     empty_message: str,
+    max_periods: int = 4,
 ) -> Statement | dict[str, str]:
     if not statement:
         return {"error": empty_message}
@@ -71,7 +83,7 @@ def _select_rows(
         values = statement.get(row)
         if values is None:
             continue
-        selected[row] = dict(list(values.items())[:4])
+        selected[row] = dict(list(values.items())[:max_periods])
 
     return selected or {"error": empty_message}
 
@@ -80,13 +92,62 @@ def get_financials(
     client: FinancialDataClient,
     symbol: str,
 ) -> Statement | dict[str, str]:
-    """Return up to four periods of selected income-statement rows."""
+    """Return up to five periods of selected income-statement rows.
 
-    return _select_rows(
-        client.get_income_statement(symbol),
+    Operating expenses use a directly reported operating-expense row when
+    available. Missing periods are derived as gross profit minus operating
+    income, which avoids treating total costs and expenses as equivalent to
+    operating expenses.
+    """
+
+    statement = client.get_income_statement(symbol)
+    selected = _select_rows(
+        statement,
         INCOME_ROWS,
         empty_message="No financial statements found",
+        max_periods=5,
     )
+    if "error" in selected:
+        return selected
+
+    operating_expenses = derive_operating_expenses(statement)
+    if operating_expenses:
+        selected["Operating Expenses"] = dict(
+            list(operating_expenses.items())[:5]
+        )
+    return {row: selected[row] for row in INCOME_ROWS if row in selected}
+
+
+def derive_operating_expenses(
+    statement: Mapping[str, Mapping[str, float | None]],
+) -> dict[str, float]:
+    """Return reported or deterministically derived operating expenses.
+
+    The direct provider row takes precedence for each period. Where it is
+    unavailable, ``Gross Profit - Operating Income`` supplies the value because
+    gross profit already excludes cost of revenue. Generic total-cost rows are
+    intentionally excluded because they are not semantically equivalent.
+    """
+
+    if not statement:
+        return {}
+    direct = _first_statement_row(statement, OPERATING_EXPENSE_ROWS)
+    gross_profit = _first_statement_row(statement, GROSS_PROFIT_ROWS)
+    operating_income = _first_statement_row(statement, OPERATING_INCOME_ROWS)
+    periods = dict.fromkeys(
+        [*direct.keys(), *gross_profit.keys(), *operating_income.keys()]
+    )
+    expenses: dict[str, float] = {}
+    for period in periods:
+        direct_value = _number(direct.get(period))
+        if direct_value is not None:
+            expenses[str(period)] = direct_value
+            continue
+        gross_profit_value = _number(gross_profit.get(period))
+        operating_income_value = _number(operating_income.get(period))
+        if gross_profit_value is not None and operating_income_value is not None:
+            expenses[str(period)] = gross_profit_value - operating_income_value
+    return expenses
 
 
 def get_cash_flow(
@@ -206,6 +267,28 @@ def _latest_row_value(statement: Mapping[str, Any], *rows: str) -> float | None:
                 if isinstance(value, (int, float)) and not isinstance(value, bool):
                     return float(value)
     return None
+
+
+def _first_statement_row(
+    statement: Mapping[str, Mapping[str, float | None]],
+    names: tuple[str, ...],
+) -> Mapping[str, float | None]:
+    """Return the first case-insensitive statement row matching ``names``."""
+
+    normalized_rows = {
+        str(row).strip().casefold(): values for row, values in statement.items()
+    }
+    for name in names:
+        values = normalized_rows.get(name.casefold())
+        if isinstance(values, Mapping):
+            return values
+    return {}
+
+
+def _number(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 def _latest_two_row_values(

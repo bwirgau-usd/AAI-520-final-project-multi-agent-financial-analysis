@@ -3,6 +3,7 @@
 import unittest
 
 from src.tools.financial_tools import (
+    derive_operating_expenses,
     get_balance_sheet,
     get_cash_flow,
     get_financial_growth,
@@ -21,6 +22,20 @@ class FakeFinancialClient:
                 "2021": 300.0,
             },
             "Net Income": {"2025": 75.0},
+            "Gross Profit": {
+                "2025": 300.0,
+                "2024": 270.0,
+                "2023": 240.0,
+                "2022": 210.0,
+                "2021": 180.0,
+            },
+            "Operating Income": {
+                "2025": 100.0,
+                "2024": 90.0,
+                "2023": 80.0,
+                "2022": 70.0,
+                "2021": 60.0,
+            },
             "Ignored Row": {"2025": 1.0},
         }
 
@@ -54,11 +69,42 @@ class TestFinancialTools(unittest.TestCase):
     def test_selects_income_rows_and_limits_periods(self):
         result = get_financials(FakeFinancialClient(), "AAPL")
 
-        self.assertEqual(list(result), ["Total Revenue", "Net Income"])
+        self.assertEqual(
+            list(result),
+            [
+                "Total Revenue",
+                "Operating Expenses",
+                "Operating Income",
+                "Net Income",
+            ],
+        )
         self.assertEqual(
             list(result["Total Revenue"]),
-            ["2025", "2024", "2023", "2022"],
+            ["2025", "2024", "2023", "2022", "2021"],
         )
+        self.assertEqual(result["Operating Expenses"]["2025"], 200.0)
+
+    def test_operating_expenses_prefer_reported_values_and_fill_gaps(self):
+        result = derive_operating_expenses(
+            {
+                "Total Operating Expenses": {
+                    "2025": 210.0,
+                    "2024": None,
+                },
+                "Gross Profit": {"2025": 300.0, "2024": 270.0},
+                "Operating Income": {"2025": 100.0, "2024": 90.0},
+                "Costs And Expenses": {"2025": 999.0, "2024": 999.0},
+            }
+        )
+
+        self.assertEqual(result, {"2025": 210.0, "2024": 180.0})
+
+    def test_total_costs_are_not_mislabeled_as_operating_expenses(self):
+        result = derive_operating_expenses(
+            {"Costs And Expenses": {"2025": 999.0}}
+        )
+
+        self.assertEqual(result, {})
 
     def test_selects_cash_flow_rows(self):
         result = get_cash_flow(FakeFinancialClient(), "AAPL")

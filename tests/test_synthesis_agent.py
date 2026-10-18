@@ -57,6 +57,7 @@ class TestSynthesisAgent(unittest.TestCase):
             "Further Research",
             "price observation count",
             "EBITDA/net-income ratio",
+            "operating expenses",
             "dividend",
             "Do not use outside knowledge",
             "every numerical claim traceable",
@@ -90,6 +91,9 @@ $987,670,000
             {"objectives": [], "tools": [], "questions": []},
             {
                 "financials": {
+                    "Operating Expenses": {
+                        "2025-09-30": 274_891_000_000,
+                    },
                     "Net Income": {"2025-09-30": 112_010_000_000},
                     "EBITDA": {"2025-09-30": 144_748_000_000},
                     "Diluted EPS": {"2025-09-30": 7.46},
@@ -115,6 +119,7 @@ $987,670,000
         self.assertNotIn("$127,150,000,000", report)
         self.assertNotIn("1.277", report)
         self.assertIn("$98,767,000,000", report)
+        self.assertIn("**Operating Expenses** (2025-09-30): $274,891,000,000", report)
         self.assertIn("-$12,715,000,000", report)
         self.assertIn("1.292x", report)
         self.assertIn("0.32%", report)

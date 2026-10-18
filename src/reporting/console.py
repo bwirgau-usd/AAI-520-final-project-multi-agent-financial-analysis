@@ -42,6 +42,11 @@ def render_console_summary(
     if current_price is None:
         current_price = info.get("currentPrice")
     revenue = _statement_value(financials, "Total Revenue", period)
+    operating_expenses = _statement_value(
+        financials,
+        "Operating Expenses",
+        period,
+    )
     operating_income = _statement_value(financials, "Operating Income", period)
     net_income = _statement_value(financials, "Net Income", period)
     ebitda = _statement_value(financials, "EBITDA", period)
@@ -98,6 +103,7 @@ def render_console_summary(
         "",
         f"4. FINANCIAL PERFORMANCE ({period_label})",
         f"   Revenue:             {_large_currency(revenue)}",
+        f"   Operating Expenses:  {_large_currency(operating_expenses)}",
         f"   Operating Income:    {_large_currency(operating_income)}",
         f"   Net Income:          {_large_currency(net_income)}",
         f"   EBITDA:              {_large_currency(ebitda)}",

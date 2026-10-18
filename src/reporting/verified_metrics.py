@@ -101,6 +101,13 @@ def verified_financial_metrics(
 
     for label, row_name, source, formatter, unit in (
         ("Revenue", "Total Revenue", financials, _currency, "USD"),
+        (
+            "Operating Expenses",
+            "Operating Expenses",
+            financials,
+            _currency,
+            "USD",
+        ),
         ("Operating Income", "Operating Income", financials, _currency, "USD"),
         ("Net Income", "Net Income", financials, _currency, "USD"),
         ("EBITDA", "EBITDA", financials, _currency, "USD"),

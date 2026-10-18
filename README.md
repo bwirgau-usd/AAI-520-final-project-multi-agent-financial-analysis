@@ -101,7 +101,8 @@ flowchart LR
 - **Market Analyst:** evaluates price behavior, volatility, volume, and market\
   context.
 - **Financial Analyst:** retrieves statements, computes revenue and earnings\
-  growth, analyzes balance-sheet cash/debt, and incorporates SEC evidence.
+  growth, preserves or derives operating expenses, analyzes balance-sheet\
+  cash/debt, and incorporates SEC evidence.
 
 ### Report Synthesizer
 
@@ -174,6 +175,12 @@ error translation belong under `src/data_sources/<provider>/`. Modules under\
 `src/tools/` provide a provider-independent interface to agents and normalize\
 records before analysis. This separation also allows a tool to combine or fall\
 back between sources later.
+
+The financial tool retains up to five available income-statement periods. It
+uses directly reported operating expenses first and fills missing periods with
+`Gross Profit - Operating Income`; total-cost rows are not treated as operating
+expenses. The reporting module provides both a revenue-versus-operating-expense
+chart and a standalone operating-expense trend chart for the final notebook.
 
 All external information used in a report should retain its source and retrieval\
 date. API credentials must be stored in environment variables and must not be\

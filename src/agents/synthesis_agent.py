@@ -73,8 +73,8 @@ When supplied, include:
   and average trading volume, and price observation count;
 - trailing and forward P/E, price/sales, profit and operating margins, return
   on equity, and beta;
-- revenue, operating income, net income, EBITDA, diluted EPS, and the
-  EBITDA/net-income ratio;
+- revenue, operating expenses, operating income, net income, EBITDA, diluted
+  EPS, and the EBITDA/net-income ratio;
 - operating cash flow, free cash flow, capital expenditure, and dividend
   yield;
 - balance-sheet cash, debt, net debt, cash/debt ratio, assets, liabilities,

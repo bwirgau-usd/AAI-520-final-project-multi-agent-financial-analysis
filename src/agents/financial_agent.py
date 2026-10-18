@@ -34,6 +34,7 @@ class FinancialResearchAgent:
         selected = [name for name in plan.get("tools", []) if name in self.TOOL_NAMES]
         observations = _run_tools(symbol, selected, tools, progress)
         growth = observations.get("financial_growth")
+        financials = observations.get("financials")
         balance = observations.get("balance_sheet")
         balance_latest = (
             balance.get("latest", {}) if isinstance(balance, Mapping) else {}
@@ -45,6 +46,12 @@ class FinancialResearchAgent:
             "specialist": "financial",
             "observations": observations,
             "analysis": {
+                "operating_expenses": (
+                    dict(financials.get("Operating Expenses", {}))
+                    if isinstance(financials, Mapping)
+                    and isinstance(financials.get("Operating Expenses"), Mapping)
+                    else {}
+                ),
                 "growth": dict(growth) if isinstance(growth, Mapping) else {},
                 "cash_and_debt": (
                     dict(balance_latest)

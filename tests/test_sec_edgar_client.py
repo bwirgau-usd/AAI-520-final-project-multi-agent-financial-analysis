@@ -73,6 +73,9 @@ class TestSecEdgarClient(unittest.TestCase):
                         "EarningsPerShareDiluted": {
                             "units": {eps["unit"]: [eps["record"]]}
                         },
+                        "OperatingExpenses": {
+                            "units": {"USD": [fact_record(75, "2025-10-31")["record"]]}
+                        },
                     }
                 },
             },
@@ -127,6 +130,10 @@ class TestSecEdgarClient(unittest.TestCase):
         self.assertEqual(
             result["official_company_facts"]["Diluted EPS"]["unit"],
             "USD / shares",
+        )
+        self.assertEqual(
+            result["official_company_facts"]["Operating Expenses"]["value"],
+            75,
         )
         self.assertEqual(
             [filing["form"] for filing in result["recent_filings"]],

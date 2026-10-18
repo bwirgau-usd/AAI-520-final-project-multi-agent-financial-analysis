@@ -24,6 +24,7 @@ SELECTED_FACTS = {
     ),
     "Net Income": ("NetIncomeLoss", "USD"),
     "Operating Income": ("OperatingIncomeLoss", "USD"),
+    "Operating Expenses": ("OperatingExpenses", "USD"),
     "Operating Cash Flow": (
         "NetCashProvidedByUsedInOperatingActivities",
         "USD",

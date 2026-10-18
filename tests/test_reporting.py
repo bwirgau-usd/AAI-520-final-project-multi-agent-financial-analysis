@@ -28,7 +28,10 @@ class TestConsoleReporting(unittest.TestCase):
                         "Total Revenue": {
                             "2025-09-30": 2_000_000_000,
                             "2024-09-30": 1_800_000_000,
-                        }
+                        },
+                        "Operating Expenses": {
+                            "2025-09-30": 750_000_000,
+                        },
                     },
                     "cash_flow": {
                         "Free Cash Flow": {"2025-09-30": 500_000_000},
@@ -75,6 +78,7 @@ class TestConsoleReporting(unittest.TestCase):
         self.assertIn("One-Year Return:     12.25%", summary)
         self.assertIn("FINANCIAL PERFORMANCE (2025)", summary)
         self.assertIn("Revenue:             $2.000B", summary)
+        self.assertIn("Operating Expenses:  $750.000M", summary)
         self.assertIn("Free Cash Flow:      $500.000M", summary)
         self.assertIn("Capital Expenditure: -$12.715B", summary)
         self.assertIn("BALANCE SHEET AND GROWTH", summary)

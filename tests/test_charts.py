@@ -10,6 +10,8 @@ from src.reporting import (
     plot_10_year_stock_price,
     plot_news_analysis_summary,
     plot_news_workflow,
+    plot_operating_expenses,
+    plot_revenue_and_operating_expenses,
     plot_system_architecture,
 )
 
@@ -113,6 +115,68 @@ class TestReportDiagrams(unittest.TestCase):
 
     def test_skips_news_chart_without_articles(self):
         self.assertIsNone(plot_news_analysis_summary({"articles": []}, show=False))
+
+
+class TestFinancialCharts(unittest.TestCase):
+    def tearDown(self):
+        plt.close("all")
+
+    def test_plots_revenue_and_operating_expenses_in_chronological_order(self):
+        financials = {
+            "Total Revenue": {
+                "2025-09-30": 500_000_000_000.0,
+                "2024-09-30": 450_000_000_000.0,
+            },
+            "Operating Expenses": {
+                "2025-09-30": 200_000_000_000.0,
+                "2024-09-30": 180_000_000_000.0,
+            },
+        }
+
+        figure = plot_revenue_and_operating_expenses(
+            financials,
+            " aapl ",
+            show=False,
+        )
+
+        self.assertIsNotNone(figure)
+        axes = figure.axes[0]
+        self.assertEqual(
+            axes.get_title(),
+            "AAPL — Revenue and Operating Expenses",
+        )
+        self.assertEqual(axes.get_ylabel(), "USD Billions")
+        self.assertEqual(
+            [label.get_text() for label in axes.get_xticklabels()],
+            ["2024", "2025"],
+        )
+        self.assertEqual(len(axes.patches), 4)
+
+    def test_plots_standalone_operating_expense_history(self):
+        figure = plot_operating_expenses(
+            {
+                "Operating Expenses": {
+                    "2025": 200_000_000_000.0,
+                    "2024": 180_000_000_000.0,
+                }
+            },
+            "MSFT",
+            show=False,
+        )
+
+        self.assertIsNotNone(figure)
+        axes = figure.axes[0]
+        self.assertEqual(axes.get_title(), "MSFT — Operating Expenses")
+        self.assertEqual(
+            [bar.get_height() for bar in axes.patches],
+            [180.0, 200.0],
+        )
+
+    def test_skips_financial_charts_without_required_data(self):
+        self.assertIsNone(
+            plot_revenue_and_operating_expenses({}, "AAPL", show=False)
+        )
+        self.assertIsNone(plot_operating_expenses({}, "AAPL", show=False))
 
 
 if __name__ == "__main__":
