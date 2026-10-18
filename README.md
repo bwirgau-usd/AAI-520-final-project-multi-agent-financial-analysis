@@ -15,6 +15,7 @@ refinement.
 
 - [Project Overview](#project-overview)
 - [Objectives](#objectives)
+- [Project Requirements Traceability](#project-requirements-traceability)
 - [System Architecture](#system-architecture)
 - [Agent Functions and Capabilities](#agent-functions-and-capabilities)
 - [Required Workflow Patterns](#required-workflow-patterns)
@@ -50,6 +51,32 @@ The project has four primary objectives:
    analysis, then improve it using structured feedback.
 4. Preserve brief notes from prior runs so future analyses can avoid repeated\
    issues and build on useful findings.
+
+## Project Requirements Traceability
+
+The following matrix identifies where every course requirement is completed.
+Each completed workflow also exposes the same mapping in
+`result["requirements_traceability"]`; the CLI and deterministic report render
+it as **Project Requirements Traceability**, and the final notebook displays it
+as a table with run-specific evidence.
+
+| Category | Requirement | Where it is completed | Observable evidence |
+|---|---|---|---|
+| Agent Functions | Plan research steps for a stock symbol | [`PlannerAgent`](src/agents/planner.py) and the LangGraph `plan_request` node in [`research_workflow.py`](src/workflows/research_workflow.py) | `result["plan"]` contains objectives, research questions, required tools, optional tool rationales, route, specialists, and applied memory actions. |
+| Agent Functions | Use tools dynamically | [`planner.py`](src/agents/planner.py), [`registry.py`](src/tools/registry.py), and the market/financial specialist agents | The planner chooses only allow-listed tools; `result["observations"]` records each executed tool result or isolated error. Different request fixtures demonstrate different selections. |
+| Agent Functions | Self-reflect on output quality | [`EvaluatorAgent.reflect`](src/agents/evaluator.py) and deterministic observation validation | `result["reflection"]` exposes strengths, weaknesses, missing information, suspicious values, follow-up questions, and validation issues. |
+| Agent Functions | Learn across runs | [`MemoryCurator`](src/memory/curator.py), [`ResearchMemoryStore`](src/memory/memory_store.py), and planner memory actions | Run 1 saves structured `weakness → next_run_action → success_check` lessons. Run 2 retrieves and applies them while replaying identical evidence; the notebook shows the resulting plan and quality change. |
+| Workflow Patterns | Prompt chaining | [`NewsPipeline`](src/workflows/news_pipeline.py) and [`news_tools.py`](src/tools/news_tools.py) | `news_analysis["pipeline_stages"]` records `ingest → preprocess → classify → extract → summarize` before routing, evaluation, and optimization. |
+| Workflow Patterns | Route content to the right specialist | [`ResearchRequestRouter` and `SpecialistRouter`](src/agents/router.py) plus LangGraph conditional edges | `request_route`, `selected_specialists`, per-article `category`, and per-article `specialist` expose market, financial, earnings, and general-news decisions. |
+| Workflow Patterns | Evaluator–optimizer | [`evaluator.py`](src/agents/evaluator.py), [`optimizer.py`](src/agents/optimizer.py), and evaluator–optimizer graph edges | Article and complete-report evaluation histories retain scores and feedback; revision histories retain before/after scores and stop at configured limits. |
+| Datasets & APIs | Retrieve market, financial, news, and filing evidence | Provider adapters under [`src/data_sources`](src/data_sources), registered tools, and specialist workflows | Yahoo Finance supplies prices and financial statements; Yahoo/NewsAPI/Google News supply news; SEC EDGAR supplies official facts and filings. FRED and Alpha Vantage remain clearly labeled extension points rather than claimed evidence. |
+| GitHub | Host code and measure collaboration | [GitHub repository](https://github.com/bwirgau-usd/AAI-520-final-project-multi-agent-financial-analysis), commit/branch/pull-request history, and [Team and Contributions](#team-and-contributions) | Repository history identifies contributions and the notebook links back to the repository. |
+| Documentation | Include a README | This `README.md` | Documents architecture, requirements, setup, configuration, usage, testing, memory, limitations, and team contributions. |
+| Code Quality | Follow PEP 8 | Python modules under `src/` and tests under `tests/`; Ruff is pinned in `requirements.txt` | Run `ruff check src tests`; the offline regression suite runs with `pytest`. |
+
+Runtime statuses distinguish **demonstrated** requirements from features that
+are implemented but were not exercised by a request-specific route. For
+example, a market-only run does not falsely claim that its news prompt chain ran.
 
 ## System Architecture
 
@@ -266,7 +293,8 @@ multi-agent-financial-analysis/
 │   ├── reporting/
 │   │   ├── charts.py
 │   │   ├── diagrams.py
-│   │   └── console.py
+│   │   ├── console.py
+│   │   └── requirements.py
 │   ├── workflows/
 │   │   ├── __init__.py
 │   │   ├── research_workflow.py

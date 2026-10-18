@@ -70,3 +70,4 @@ class ResearchState(TypedDict, total=False):
     memory_entry: dict[str, Any]
     evidence_snapshot: dict[str, Any]
     evidence_reused: bool
+    requirements_traceability: list[dict[str, str]]

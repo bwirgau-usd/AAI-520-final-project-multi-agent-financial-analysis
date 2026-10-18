@@ -22,6 +22,7 @@ from src.agents import (
 from src.agents.synthesis_agent import append_memory_action_evidence
 from src.llm import ask_llm
 from src.memory import MemoryCurator, ResearchMemoryStore
+from src.reporting.requirements import build_requirement_traceability
 from src.state import ResearchState
 from src.tools.registry import TOOLS, Tool
 from src.workflows.news_pipeline import NewsPipeline, build_news_pipeline
@@ -440,12 +441,16 @@ class ResearchWorkflow:
 
     def _finalize(self, state: ResearchState) -> ResearchState:
         self._emit("Finalizing the evaluated report")
-        return {
+        updates: ResearchState = {
             "report_validation": state.get("report_evaluation", {}).get(
                 "validation_issues", []
             ),
             "graph_trace": self._trace(state, "finalize"),
         }
+        updates["requirements_traceability"] = build_requirement_traceability(
+            {**state, **updates}
+        )
+        return updates
 
     @staticmethod
     def _memory_route(state: ResearchState) -> str:
@@ -461,15 +466,20 @@ class ResearchWorkflow:
             state["research_request"],
             state.get("news_analysis"),
         )
-        return {
-            "memory_entry": self.memory_store.add(
-                state["symbol"],
-                curated["summary"],
-                state["reflection"]["weaknesses"],
-                curated["lessons"],
-            ),
+        memory_entry = self.memory_store.add(
+            state["symbol"],
+            curated["summary"],
+            state["reflection"]["weaknesses"],
+            curated["lessons"],
+        )
+        updates: ResearchState = {
+            "memory_entry": memory_entry,
             "graph_trace": self._trace(state, "remember"),
         }
+        updates["requirements_traceability"] = build_requirement_traceability(
+            {**state, **updates}
+        )
+        return updates
 
     @staticmethod
     def _trace(state: ResearchState, node: str) -> list[str]:

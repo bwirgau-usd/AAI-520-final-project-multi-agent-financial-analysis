@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from numbers import Number
 from typing import Any
 
+from src.reporting.requirements import build_requirement_traceability
 from src.state import ResearchState
 
 
@@ -257,6 +258,25 @@ def render_console_summary(
         if further_research
         else ["   None identified."]
     )
+    requirements = state.get("requirements_traceability")
+    if not isinstance(requirements, list):
+        requirements = build_requirement_traceability(state)
+    lines.extend(["", "14. PROJECT REQUIREMENTS TRACEABILITY"])
+    for item in requirements:
+        requirement = _mapping(item)
+        if not requirement:
+            continue
+        lines.extend(
+            [
+                (
+                    f"   [{_text(requirement.get('status')).upper()}] "
+                    f"{_text(requirement.get('requirement'))}"
+                ),
+                f"      Category: {_text(requirement.get('category'))}",
+                f"      Implemented: {_text(requirement.get('implementation'))}",
+                f"      Evidence: {_text(requirement.get('run_evidence'))}",
+            ]
+        )
     lines.extend(["", "=" * 70, "END OF FINAL RESEARCH REPORT", "=" * 70])
     return "\n".join(lines)
 

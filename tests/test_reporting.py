@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.reporting import render_console_summary
+from src.reporting import build_requirement_traceability, render_console_summary
 
 
 class TestConsoleReporting(unittest.TestCase):
@@ -87,6 +87,63 @@ class TestConsoleReporting(unittest.TestCase):
         self.assertIn("Revenue Growth:      11.11%", summary)
         self.assertIn("Cash Trend:          5.00%", summary)
         self.assertIn("Dividend Yield:      0.32%", summary)
+        self.assertIn("PROJECT REQUIREMENTS TRACEABILITY", summary)
+        self.assertIn("Plans research steps", summary)
+        self.assertIn("Follows PEP 8 style", summary)
+
+    def test_requirement_traceability_covers_the_complete_project_rubric(self):
+        rows = build_requirement_traceability(
+            {
+                "request_route": "market",
+                "selected_specialists": ["market"],
+                "plan": {
+                    "objectives": ["Assess price risk"],
+                    "questions": ["How volatile is the stock?"],
+                    "tools": ["price_data"],
+                },
+                "observations": {"price_data": {"latest_price": 200}},
+                "reflection": {
+                    "strengths": ["Price data is available"],
+                    "weaknesses": [],
+                    "deterministic_issues": [],
+                },
+                "graph_trace": ["plan_request", "market_research", "reflect"],
+                "report_evaluation_history": [{"score": 80}],
+            }
+        )
+
+        requirements = {row["requirement"]: row for row in rows}
+        self.assertEqual(len(rows), 11)
+        self.assertEqual(
+            set(requirements),
+            {
+                "Plans research steps",
+                "Uses tools dynamically",
+                "Self-reflects on output quality",
+                "Learns across runs",
+                "Prompt chaining: ingest → preprocess → classify → extract → summarize",
+                "Routes requests and content to specialists",
+                "Evaluator–optimizer refinement",
+                "Uses financial datasets and APIs",
+                "Uses GitHub and documents collaboration",
+                "Includes a project README",
+                "Follows PEP 8 style",
+            },
+        )
+        self.assertEqual(
+            requirements["Plans research steps"]["status"],
+            "demonstrated",
+        )
+        self.assertEqual(
+            requirements[
+                "Prompt chaining: ingest → preprocess → classify → extract → summarize"
+            ]["status"],
+            "implemented—not exercised in this run",
+        )
+        self.assertEqual(
+            requirements["Includes a project README"]["status"],
+            "documented",
+        )
 
 
 if __name__ == "__main__":

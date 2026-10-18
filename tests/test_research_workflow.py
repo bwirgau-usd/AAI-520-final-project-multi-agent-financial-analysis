@@ -81,6 +81,15 @@ class TestResearchWorkflow(unittest.TestCase):
                 "Saving evaluator feedback for a future run",
             )
             self.assertIn("comprehensive_research", result["graph_trace"])
+            requirements = {
+                item["requirement"]: item
+                for item in result["requirements_traceability"]
+            }
+            self.assertEqual(
+                requirements["Learns across runs"]["status"],
+                "demonstrated",
+            )
+            self.assertIn("saved a new memory", requirements["Learns across runs"]["run_evidence"])
             self.assertEqual(len(llm.prompts), 4)
 
     def test_can_skip_memory_persistence(self):
