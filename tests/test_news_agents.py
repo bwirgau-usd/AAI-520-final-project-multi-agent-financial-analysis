@@ -38,6 +38,50 @@ class TestNewsAgents(unittest.TestCase):
         self.assertEqual(market["specialist"], "market")
         self.assertEqual(news["specialist"], "news")
 
+    def test_routes_representative_content_fixtures(self):
+        router = SpecialistRouter()
+        fixtures = [
+            (
+                "earnings release",
+                {**ARTICLE, "category": "earnings"},
+                "earnings",
+            ),
+            (
+                "market event",
+                {
+                    **ARTICLE,
+                    "title": "Example shares fall after analyst downgrade",
+                    "raw_text": "Example shares fell after an analyst downgrade.",
+                    "category": "market",
+                },
+                "market",
+            ),
+            (
+                "general company news",
+                {
+                    **ARTICLE,
+                    "title": "Example appoints a new director",
+                    "raw_text": "Example appointed a new director.",
+                    "category": "news",
+                },
+                "news",
+            ),
+        ]
+
+        results = [
+            (label, router.route(article)["specialist"], expected)
+            for label, article, expected in fixtures
+        ]
+
+        self.assertEqual(
+            results,
+            [
+                ("earnings release", "earnings", "earnings"),
+                ("market event", "market", "market"),
+                ("general company news", "news", "news"),
+            ],
+        )
+
     def test_model_specialist_analysis_is_normalized(self):
         response = json.dumps(
             {

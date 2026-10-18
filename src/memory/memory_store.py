@@ -67,6 +67,7 @@ class ResearchMemoryStore:
         symbol: str,
         summary: str,
         weaknesses: list[Any] | None = None,
+        lessons: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         """Append one entry and atomically persist the bounded collection."""
 
@@ -76,6 +77,7 @@ class ResearchMemoryStore:
             "symbol": normalized_symbol,
             "summary": summary,
             "weaknesses": list(weaknesses or []),
+            "lessons": list(lessons or []),
         }
         entries = (self.load() + [entry])[-self.max_entries :]
         self._write(entries)

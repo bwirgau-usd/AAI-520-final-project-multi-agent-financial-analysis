@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any
 
 from src.agents.analysis_quality import (
@@ -27,6 +27,7 @@ class NewsAgent:
         article: Mapping[str, Any],
         fallback: Mapping[str, Any],
         research_request: str = "",
+        planning_actions: Collection[str] = (),
     ) -> dict[str, Any]:
         """Ask the model for observations, interpretation, and uncertainty."""
 
@@ -37,6 +38,9 @@ article evidence.
 
 User research request: {research_request or 'general company research'}
 
+Saved next-run actions that this analysis must apply:
+{json.dumps(list(planning_actions), default=str)}
+
 Article:
 {json.dumps(article, default=str)}
 
@@ -45,6 +49,10 @@ uncertainties.
 
 Rules:
 - Identify concrete factual observations and explain why they matter.
+- Explain the financial transmission mechanism using article evidence: how a
+  material event could affect revenue, costs, cash flow, risk, or valuation.
+- If the supplied article does not establish a material financial effect, say
+  so explicitly instead of inventing significance.
 - Identify uncertainty or missing information.
 - Do not invent facts or financial figures.
 - Do not predict the stock price or recommend buy, sell, or hold.
@@ -52,13 +60,36 @@ Rules:
         parsed = parse_json_object(self._llm(prompt), fallback={})
         proposed = meaningful_text_list(parsed.get("observations"))
         observations, _ = grounded_observations(proposed, article)
+        interpretation = meaningful_text(parsed.get("interpretation"))
+        applied_actions = [
+            action.strip()
+            for action in planning_actions
+            if isinstance(action, str) and action.strip()
+        ]
+        if _requires_financial_implication(applied_actions) and not any(
+            marker in interpretation.casefold()
+            for marker in (
+                "revenue",
+                "cost",
+                "cash flow",
+                "valuation",
+                "financial effect",
+            )
+        ):
+            interpretation = (
+                "The supplied article evidence does not by itself establish how "
+                "the reported event affects revenue, costs, cash flow, or "
+                "valuation; a material financial effect therefore remains "
+                "uncertain."
+            )
         return {
             "specialist": specialist,
             "observations": observations,
-            "interpretation": meaningful_text(parsed.get("interpretation")),
+            "interpretation": interpretation,
             "uncertainties": meaningful_text_list(parsed.get("uncertainties")),
             "focus": meaningful_text(parsed.get("focus"))
             or meaningful_text(fallback.get("focus")),
+            "applied_memory_actions": applied_actions,
         }
 
 
@@ -115,6 +146,13 @@ def _joined(value: object) -> str:
 
 def _string(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _requires_financial_implication(actions: Collection[str]) -> bool:
+    text = " ".join(actions).casefold()
+    return "material event" in text and any(
+        marker in text for marker in ("revenue", "cash flow", "valuation")
+    )
 
 
 def _string_list(value: object) -> list[str]:

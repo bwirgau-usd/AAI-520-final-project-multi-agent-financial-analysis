@@ -5,7 +5,7 @@ import json
 from src.agents.evaluator import EvaluatorAgent
 from src.agents.router import ResearchRequestRouter
 from src.memory import ResearchMemoryStore
-from src.workflows import build_research_workflow
+from src.workflows import build_news_pipeline, build_research_workflow
 
 
 def _strong_market_report() -> str:
@@ -118,26 +118,184 @@ class LearningLlm:
 
 def test_memory_changes_the_second_run_plan(tmp_path):
     store = ResearchMemoryStore(tmp_path / "memory.json")
+    tool_calls = []
+
+    def price_data(symbol):
+        tool_calls.append(symbol)
+        return {
+            "latest_price": 110,
+            "1y_return_percent": 10,
+        }
+
     workflow = build_research_workflow(
         llm=LearningLlm(),
-        tools={
-            "price_data": lambda _symbol: {
-                "latest_price": 110,
-                "1y_return_percent": 10,
-            }
-        },
+        tools={"price_data": price_data},
         memory_store=store,
         max_report_revisions=0,
     )
     request = "Analyze market price, return, and volatility"
 
     first = workflow.run("AAPL", request)
-    second = workflow.run("AAPL", request, remember=False)
+    second = workflow.run(
+        "AAPL",
+        request,
+        remember=False,
+        evidence_snapshot=first,
+    )
 
     assert first["plan"]["objectives"] == ["Establish a price baseline"]
-    assert second["plan"]["objectives"] == ["Apply saved volatility feedback"]
+    assert second["plan"]["objectives"][0] == "Apply saved volatility feedback"
+    assert any(
+        "volatility and drawdown context" in objective
+        for objective in second["plan"]["objectives"]
+    )
+    assert second["plan"]["applied_memory_actions"]
     assert second["plan"]["memory_context"]
     assert second["request_route"] == "market"
+    assert second["evidence_reused"] is True
+    assert tool_calls == ["AAPL"]
+
+
+class ActionableLearningLlm:
+    def __call__(self, prompt):
+        if "planning an evidence-based" in prompt:
+            return json.dumps(
+                {
+                    "objectives": ["Assess the supplied company event"],
+                    "tools": [],
+                    "questions": ["What event does the article establish?"],
+                }
+            )
+        if "Classify this financial article" in prompt:
+            return json.dumps({"category": "news", "confidence": 0.95})
+        if "Extract only facts" in prompt:
+            return json.dumps(
+                {
+                    "company": "Example",
+                    "event": "acquisition",
+                    "event_dates": [],
+                    "sentiment": "neutral",
+                    "financial_numbers": [],
+                    "events": ["acquisition"],
+                    "keywords": ["acquisition"],
+                }
+            )
+        if "Summarize the supplied financial article" in prompt:
+            return json.dumps(
+                {"summary": "Example announced an acquisition update."}
+            )
+        if "financial news analyst" in prompt or "optimizing a financial-news" in prompt:
+            return json.dumps(
+                {
+                    "specialist": "news",
+                    "observations": [
+                        "Headline: Example announces an acquisition update",
+                        "Detected events: acquisition",
+                    ],
+                    "interpretation": (
+                        "The supplied article provides evidence relevant to the "
+                        "reported company development; its investment significance "
+                        "requires corroboration."
+                    ),
+                    "uncertainties": ["Only a provider snippet was supplied."],
+                }
+            )
+        if "research quality reviewer" in prompt:
+            return json.dumps(
+                {
+                    "strengths": ["The event is traceable to a source URL"],
+                    "weaknesses": ["News analysis lacks financial implications"],
+                    "missing_information": [],
+                    "suspicious_values": [],
+                    "follow_up_questions": [],
+                }
+            )
+        if "Write a concise" in prompt:
+            if "Apply prior-run feedback" in prompt:
+                return (
+                    "# News report\n\nThe evidence does not establish whether the "
+                    "event affects revenue, costs, cash flow, or valuation, so "
+                    "the financial implication remains uncertain."
+                )
+            return "# News report\n\nThe article describes an acquisition event."
+        if "Summarize reusable" in prompt:
+            return "Explain the financial implications of material news events."
+        raise AssertionError(f"Unexpected prompt: {prompt}")
+
+
+class OneArticleYahoo:
+    def __init__(self):
+        self.calls = 0
+
+    def get_news(self, _symbol, max_articles=8):
+        self.calls += 1
+        return [
+            {
+                "title": "Example announces an acquisition update",
+                "summary": "Example announced an acquisition update.",
+                "description": "The company provided no financial forecast.",
+                "content": "",
+                "publisher": "Example Wire",
+                "source": "Yahoo Finance",
+                "url": "https://example.com/acquisition",
+                "published_at": "2026-10-01T12:00:00Z",
+                "author": None,
+            }
+        ][:max_articles]
+
+
+class NoNewsApi:
+    def get_articles(self, _symbol, max_articles=8):
+        return []
+
+
+def test_saved_lesson_changes_and_improves_replay_of_same_evidence(tmp_path):
+    llm = ActionableLearningLlm()
+    yahoo = OneArticleYahoo()
+    news_pipeline = build_news_pipeline(
+        llm,
+        yahoo_client=yahoo,
+        news_api_client=NoNewsApi(),
+        max_optimizer_iterations=1,
+        substantive_reasoning_threshold=60,
+    )
+    workflow = build_research_workflow(
+        llm=llm,
+        tools={},
+        news_pipeline=news_pipeline,
+        memory_store=ResearchMemoryStore(tmp_path / "memory.json"),
+        max_report_revisions=0,
+    )
+    request = "Summarize recent company news and events"
+
+    first = workflow.run("AAPL", request)
+    second = workflow.run(
+        "AAPL",
+        request,
+        remember=False,
+        evidence_snapshot=first,
+    )
+
+    lesson = first["memory_entry"]["lessons"][0]
+    action = lesson["next_run_action"]
+    first_article = first["news_analysis"]["articles"][0]
+    second_article = second["news_analysis"]["articles"][0]
+    assert lesson["weakness"] == "News analysis lacks financial implications"
+    assert lesson in second["plan"]["applied_memory_actions"]
+    assert action in second["news_analysis"]["planning_actions"]
+    assert second["evidence_reused"] is True
+    assert second["news_analysis"]["evidence_reused"] is True
+    assert yahoo.calls == 1
+    assert (
+        first["news_analysis"]["source_articles"]
+        == second["news_analysis"]["source_articles"]
+    )
+    assert first_article["evaluation_history"][0]["substantive_reasoning_score"] == 50
+    assert second_article["evaluation_history"][0]["substantive_reasoning_score"] == 100
+    assert "revenue, costs, cash flow, or valuation" in second_article[
+        "optimized_analysis"
+    ]["interpretation"]
+    assert "financial implication remains uncertain" in second["report"]
 
 
 class RevisionLlm:

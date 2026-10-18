@@ -236,6 +236,59 @@ $987,670,000
         self.assertIn("48,103,280", report)
         self.assertIn("148.75%", report)
 
+    def test_report_exposes_saved_feedback_action_and_execution_evidence(self):
+        lesson = {
+            "weakness": "News analysis lacks financial implications",
+            "next_run_action": (
+                "Explain how each material event could affect revenue, costs, "
+                "cash flow, or valuation"
+            ),
+            "success_check": (
+                "Include supporting evidence, a financial implication, and uncertainty"
+            ),
+        }
+        report = SynthesisAgent(lambda _prompt: "# Report").create_report(
+            "AAPL",
+            {
+                "objectives": [],
+                "tools": [],
+                "questions": [],
+                "applied_memory_actions": [lesson],
+            },
+            {
+                "news_analysis": {
+                    "articles": [
+                        {
+                            "evaluation": {
+                                "substantive_reasoning_passed": True,
+                            },
+                            "optimized_analysis": {
+                                "interpretation": (
+                                    "The evidence does not establish a revenue or "
+                                    "cash-flow effect, so uncertainty remains."
+                                )
+                            },
+                        }
+                    ]
+                }
+            },
+            {
+                "strengths": [],
+                "weaknesses": [],
+                "missing_information": [],
+                "suspicious_values": [],
+                "follow_up_questions": [],
+                "deterministic_issues": [],
+            },
+            [],
+        )
+
+        self.assertIn("## Applied Prior-Run Feedback", report)
+        self.assertIn(lesson["weakness"], report)
+        self.assertIn(lesson["next_run_action"], report)
+        self.assertIn("1 passed the substantive-reasoning check", report)
+        self.assertIn("revenue or cash-flow effect", report)
+
 
 if __name__ == "__main__":
     unittest.main()

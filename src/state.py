@@ -10,11 +10,15 @@ class ResearchPlan(TypedDict, total=False):
 
     objectives: list[str]
     tools: list[str]
+    required_tools: list[str]
+    optional_tools: list[dict[str, str]]
+    available_optional_tools: list[str]
     questions: list[str]
     research_request: str
     route: str
     specialists: list[str]
     memory_context: list[dict[str, Any]]
+    applied_memory_actions: list[dict[str, str]]
 
 
 class ValidationIssue(TypedDict, total=False):
@@ -64,3 +68,5 @@ class ResearchState(TypedDict, total=False):
     max_report_revisions: int
     graph_trace: list[str]
     memory_entry: dict[str, Any]
+    evidence_snapshot: dict[str, Any]
+    evidence_reused: bool

@@ -28,6 +28,26 @@ class EmptyNewsApi:
         return []
 
 
+class GenericReasoningLlm:
+    def __call__(self, _prompt):
+        return json.dumps(
+            {
+                "specialist": "news",
+                "observations": [
+                    "Headline: AAPL announces an acquisition update",
+                    "Detected events: acquisition",
+                    "Source and date: Example, 2026-10-01T12:00:00Z",
+                ],
+                "interpretation": (
+                    "The supplied article provides evidence relevant to the "
+                    "reported company development; its investment significance "
+                    "requires corroboration."
+                ),
+                "uncertainties": ["Only a provider snippet was supplied."],
+            }
+        )
+
+
 class ImprovingLlm:
     def __init__(self):
         self.prompts = []
@@ -118,6 +138,47 @@ class TestNewsPipeline(unittest.TestCase):
         self.assertIsNone(result["average_structural_score"])
         self.assertIsNone(result["average_substantive_reasoning_score"])
         self.assertEqual(result["pipeline_stages"][-1], "optimize")
+
+    def test_substantive_weakness_triggers_revision_and_clear_failure_status(self):
+        yahoo = type(
+            "GenericYahoo",
+            (),
+            {
+                "get_news": lambda self, symbol, max_articles=8: [
+                    {
+                        "title": f"{symbol} announces an acquisition update",
+                        "summary": "The company announced an acquisition update.",
+                        "description": "The acquisition update was announced.",
+                        "content": "",
+                        "publisher": "Example",
+                        "url": "https://example.com/acquisition",
+                        "published_at": "2026-10-01T12:00:00Z",
+                        "author": None,
+                        "source": "Yahoo Finance",
+                    }
+                ]
+            },
+        )()
+        pipeline = build_news_pipeline(
+            GenericReasoningLlm(),
+            yahoo_client=yahoo,
+            news_api_client=EmptyNewsApi(),
+            max_optimizer_iterations=2,
+            substantive_reasoning_threshold=60,
+        )
+
+        result = pipeline.analyze("AAPL")
+
+        article = result["articles"][0]
+        self.assertEqual(len(article["optimization_history"]), 2)
+        self.assertTrue(article["evaluation"]["passed"])
+        self.assertFalse(article["evaluation"]["overall_passed"])
+        self.assertEqual(
+            article["analysis_status"],
+            "insufficient_reasoning_or_evidence",
+        )
+        self.assertEqual(result["structural_passed_count"], 1)
+        self.assertEqual(result["passed_count"], 0)
 
 
 if __name__ == "__main__":

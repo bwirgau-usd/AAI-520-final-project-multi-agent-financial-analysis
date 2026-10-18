@@ -19,6 +19,7 @@ from src.agents import (
     ResearchRequestRouter,
     SynthesisAgent,
 )
+from src.agents.synthesis_agent import append_memory_action_evidence
 from src.llm import ask_llm
 from src.memory import MemoryCurator, ResearchMemoryStore
 from src.state import ResearchState
@@ -64,6 +65,7 @@ class ResearchWorkflow:
         remember: bool = True,
         progress: ProgressCallback | None = None,
         max_report_revisions: int | None = None,
+        evidence_snapshot: Mapping[str, Any] | None = None,
     ) -> ResearchState:
         """Run a request-aware research graph for one stock symbol."""
 
@@ -88,6 +90,8 @@ class ResearchWorkflow:
             "report_evaluation_history": [],
             "report_revision_history": [],
             "graph_trace": [],
+            "evidence_snapshot": dict(evidence_snapshot or {}),
+            "evidence_reused": bool(evidence_snapshot),
         }
         result = self.graph.invoke(initial, config={"recursion_limit": 50})
         return ResearchState(result)
@@ -169,12 +173,7 @@ class ResearchWorkflow:
 
     def _market_research(self, state: ResearchState) -> ResearchState:
         self._emit("Running the market specialist")
-        result = self.market_agent.research(
-            state["symbol"],
-            state["plan"],
-            self.tools,
-            progress=self._emit,
-        )
+        result = self._market_result(state)
         return {
             "observations": result["observations"],
             "specialist_analyses": {"market": result["analysis"]},
@@ -183,12 +182,7 @@ class ResearchWorkflow:
 
     def _financial_research(self, state: ResearchState) -> ResearchState:
         self._emit("Running the financial specialist")
-        result = self.financial_agent.research(
-            state["symbol"],
-            state["plan"],
-            self.tools,
-            progress=self._emit,
-        )
+        result = self._financial_result(state)
         return {
             "observations": result["observations"],
             "specialist_analyses": {"financial": result["analysis"]},
@@ -219,12 +213,8 @@ class ResearchWorkflow:
 
     def _comprehensive_research(self, state: ResearchState) -> ResearchState:
         self._emit("Running all selected research specialists")
-        market = self.market_agent.research(
-            state["symbol"], state["plan"], self.tools, progress=self._emit
-        )
-        financial = self.financial_agent.research(
-            state["symbol"], state["plan"], self.tools, progress=self._emit
-        )
+        market = self._market_result(state)
+        financial = self._financial_result(state)
         observations = {**market["observations"], **financial["observations"]}
         analyses = {
             "market": market["analysis"],
@@ -264,10 +254,28 @@ class ResearchWorkflow:
                 "error": "The news pipeline is not configured.",
             }
         try:
+            snapshot = state.get("evidence_snapshot", {})
+            prior_news = snapshot.get("news_analysis", {})
+            source_articles = (
+                prior_news.get("source_articles")
+                if isinstance(prior_news, Mapping)
+                else None
+            )
+            planning_actions = [
+                lesson.get("next_run_action", "")
+                for lesson in state.get("plan", {}).get(
+                    "applied_memory_actions", []
+                )
+                if isinstance(lesson, Mapping)
+            ]
             return self.news_pipeline.analyze(
                 state["symbol"],
                 state["research_request"],
                 progress=self._emit,
+                planning_actions=planning_actions,
+                source_articles=(
+                    source_articles if isinstance(source_articles, list) else None
+                ),
             )
         except Exception as exc:  # noqa: BLE001 - preserve other specialists
             return {
@@ -276,6 +284,42 @@ class ResearchWorkflow:
                 "article_count": 0,
                 "error": f"{type(exc).__name__}: {exc}",
             }
+
+    def _market_result(self, state: ResearchState) -> dict[str, Any]:
+        replay = _snapshot_observations(
+            state.get("evidence_snapshot", {}),
+            state.get("plan", {}).get("tools", []),
+            self.market_agent.TOOL_NAMES,
+        )
+        if replay is None:
+            return self.market_agent.research(
+                state["symbol"],
+                state["plan"],
+                self.tools,
+                progress=self._emit,
+            )
+        return self.market_agent.analyze_observations(
+            replay,
+            state.get("plan", {}).get("tools", []),
+        )
+
+    def _financial_result(self, state: ResearchState) -> dict[str, Any]:
+        replay = _snapshot_observations(
+            state.get("evidence_snapshot", {}),
+            state.get("plan", {}).get("tools", []),
+            self.financial_agent.TOOL_NAMES,
+        )
+        if replay is None:
+            return self.financial_agent.research(
+                state["symbol"],
+                state["plan"],
+                self.tools,
+                progress=self._emit,
+            )
+        return self.financial_agent.analyze_observations(
+            replay,
+            state.get("plan", {}).get("tools", []),
+        )
 
     def _validate_observations(self, state: ResearchState) -> ResearchState:
         self._emit("Validating specialist observations")
@@ -373,6 +417,11 @@ class ResearchWorkflow:
             state["observations"],
             state.get("specialist_analyses", {}),
         )
+        report = append_memory_action_evidence(
+            report,
+            state["plan"],
+            state["observations"],
+        )
         history = [
             *state.get("report_revision_history", []),
             {
@@ -404,18 +453,20 @@ class ResearchWorkflow:
 
     def _remember(self, state: ResearchState) -> ResearchState:
         self._emit("Saving evaluator feedback for a future run")
-        summary = self.memory_curator.summarize(
+        curated = self.memory_curator.curate(
             state["symbol"],
             state["report"],
             state["reflection"],
             state.get("report_evaluation"),
             state["research_request"],
+            state.get("news_analysis"),
         )
         return {
             "memory_entry": self.memory_store.add(
                 state["symbol"],
-                summary,
+                curated["summary"],
                 state["reflection"]["weaknesses"],
+                curated["lessons"],
             ),
             "graph_trace": self._trace(state, "remember"),
         }
@@ -479,3 +530,21 @@ def _float_env(name: str, default: float) -> float:
         return max(0.0, min(float(os.getenv(name, str(default))), 100.0))
     except ValueError:
         return default
+
+
+def _snapshot_observations(
+    snapshot: Mapping[str, Any],
+    selected_tools: list[str],
+    specialist_tools: tuple[str, ...],
+) -> dict[str, Any] | None:
+    """Return selected observations from a prior run without provider calls."""
+
+    observations = snapshot.get("observations", snapshot)
+    if not isinstance(observations, Mapping) or not snapshot:
+        return None
+    selected = [name for name in selected_tools if name in specialist_tools]
+    return {
+        name: observations[name]
+        for name in selected
+        if name in observations
+    }

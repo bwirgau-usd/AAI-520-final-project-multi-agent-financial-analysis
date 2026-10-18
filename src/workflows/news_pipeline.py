@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import re
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -44,6 +44,7 @@ class NewsPipeline:
     google_news_client: GoogleNewsDataClient | None = None
     max_articles: int = 8
     evaluation_threshold: float = 75
+    substantive_reasoning_threshold: float = 60
     max_optimizer_iterations: int = 3
     prompt_llm: LlmCallable = ask_llm
 
@@ -53,6 +54,8 @@ class NewsPipeline:
         research_request: str = "",
         *,
         progress: ProgressCallback | None = None,
+        planning_actions: Collection[str] = (),
+        source_articles: Sequence[Mapping[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Return articles plus source, routing, and evaluation summaries."""
 
@@ -61,13 +64,22 @@ class NewsPipeline:
             raise ValueError("symbol must be a non-empty string")
         emit = progress or (lambda _message: None)
 
-        ingestion = ingest_news(
-            self.yahoo_client,
-            self.news_api_client,
-            normalized_symbol,
-            google_news_client=self.google_news_client,
-            max_articles=self.max_articles,
-        )
+        if source_articles is None:
+            ingestion = ingest_news(
+                self.yahoo_client,
+                self.news_api_client,
+                normalized_symbol,
+                google_news_client=self.google_news_client,
+                max_articles=self.max_articles,
+            )
+        else:
+            ingestion = {
+                "articles": [dict(article) for article in source_articles][
+                    : self.max_articles
+                ],
+                "retrieved_counts": {"evidence_replay": len(source_articles)},
+                "source_errors": {},
+            }
         raw_articles = ingestion["articles"]
         processed_articles: list[NewsArticle] = []
 
@@ -89,6 +101,7 @@ class NewsPipeline:
                     article,
                     fallback,
                     research_request,
+                    planning_actions,
                 )
             except Exception as exc:  # noqa: BLE001 - isolate an article/model failure
                 initial_analysis = {
@@ -104,13 +117,15 @@ class NewsPipeline:
                 current_analysis,
                 article=article,
                 threshold=self.evaluation_threshold,
+                substantive_threshold=self.substantive_reasoning_threshold,
             )
             evaluation_history = [evaluation]
             optimization_history: list[dict[str, Any]] = []
 
             iterations = 0
             while (
-                not evaluation["passed"] and iterations < self.max_optimizer_iterations
+                evaluation["needs_revision"]
+                and iterations < self.max_optimizer_iterations
             ):
                 try:
                     current_analysis = self.optimizer.optimize(
@@ -132,6 +147,7 @@ class NewsPipeline:
                     current_analysis,
                     article=article,
                     threshold=self.evaluation_threshold,
+                    substantive_threshold=self.substantive_reasoning_threshold,
                 )
                 evaluation_history.append(evaluation)
                 iterations += 1
@@ -141,6 +157,11 @@ class NewsPipeline:
             article["optimized_analysis"] = current_analysis
             article["evaluation_history"] = evaluation_history
             article["optimization_history"] = optimization_history
+            article["analysis_status"] = (
+                "accepted"
+                if evaluation["overall_passed"]
+                else "insufficient_reasoning_or_evidence"
+            )
             processed_articles.append(article)
 
         source_counts = Counter(
@@ -172,6 +193,7 @@ class NewsPipeline:
                 "optimize",
             ],
             "articles": processed_articles,
+            "source_articles": [dict(article) for article in raw_articles],
             "article_count": len(processed_articles),
             "retrieved_counts": ingestion["retrieved_counts"],
             "source_errors": ingestion["source_errors"],
@@ -192,11 +214,20 @@ class NewsPipeline:
                 "significance."
             ),
             "passed_count": sum(
+                bool(article["evaluation"].get("overall_passed"))
+                for article in processed_articles
+            ),
+            "structural_passed_count": sum(
                 bool(article["evaluation"].get("passed"))
                 for article in processed_articles
             ),
             "evaluation_threshold": self.evaluation_threshold,
+            "substantive_reasoning_threshold": (
+                self.substantive_reasoning_threshold
+            ),
             "max_optimizer_iterations": self.max_optimizer_iterations,
+            "planning_actions": list(planning_actions),
+            "evidence_reused": source_articles is not None,
         }
 
 
@@ -209,6 +240,7 @@ def build_news_pipeline(
     max_articles: int | None = None,
     evaluation_threshold: float | None = None,
     max_optimizer_iterations: int | None = None,
+    substantive_reasoning_threshold: float | None = None,
 ) -> NewsPipeline:
     """Build the production pipeline with environment-configured limits."""
 
@@ -244,6 +276,17 @@ def build_news_pipeline(
         if max_articles is not None
         else _int_env("MAX_NEWS_ARTICLES", 16),
         evaluation_threshold=max(0, min(float(threshold), 100)),
+        substantive_reasoning_threshold=max(
+            0,
+            min(
+                float(
+                    substantive_reasoning_threshold
+                    if substantive_reasoning_threshold is not None
+                    else _float_env("SUBSTANTIVE_REASONING_THRESHOLD", 60)
+                ),
+                100,
+            ),
+        ),
         max_optimizer_iterations=(
             max_optimizer_iterations
             if max_optimizer_iterations is not None

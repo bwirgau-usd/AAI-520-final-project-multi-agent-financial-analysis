@@ -33,6 +33,16 @@ class FinancialResearchAgent:
     ) -> dict[str, Any]:
         selected = [name for name in plan.get("tools", []) if name in self.TOOL_NAMES]
         observations = _run_tools(symbol, selected, tools, progress)
+        return self.analyze_observations(observations, selected)
+
+    def analyze_observations(
+        self,
+        observations: Mapping[str, Any],
+        selected_tools: Sequence[str],
+    ) -> dict[str, Any]:
+        """Analyze already-collected evidence for reproducible replay runs."""
+
+        selected = [name for name in selected_tools if name in self.TOOL_NAMES]
         growth = observations.get("financial_growth")
         financials = observations.get("financials")
         balance = observations.get("balance_sheet")

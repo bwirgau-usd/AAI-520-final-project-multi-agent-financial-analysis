@@ -33,6 +33,20 @@ class TestResearchMemoryStore(unittest.TestCase):
             self.assertEqual(ResearchMemoryStore(path).load(), [entry])
             self.assertFalse(path.with_suffix(".json.tmp").exists())
 
+    def test_add_persists_structured_lessons(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            store = ResearchMemoryStore(Path(temporary_directory) / "memory.json")
+            lesson = {
+                "weakness": "News analysis lacks financial implications",
+                "next_run_action": "Explain each material event's financial effect",
+                "success_check": "Include evidence, implication, and uncertainty",
+            }
+
+            entry = store.add("AAPL", "Improve reasoning", lessons=[lesson])
+
+            self.assertEqual(entry["lessons"], [lesson])
+            self.assertEqual(store.for_symbol("AAPL")[0]["lessons"], [lesson])
+
     def test_filters_symbols_without_case_sensitivity(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             store = ResearchMemoryStore(Path(temporary_directory) / "memory.json")

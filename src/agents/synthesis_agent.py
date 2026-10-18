@@ -116,4 +116,76 @@ Strict rules:
         report = self._llm(prompt).strip()
         if not report:
             raise RuntimeError("The synthesis model returned an empty report.")
-        return reconcile_report_financial_values(report, observations)
+        reconciled = reconcile_report_financial_values(report, observations)
+        return append_memory_action_evidence(reconciled, plan, observations)
+
+
+def append_memory_action_evidence(
+    report: str,
+    plan: ResearchPlan,
+    observations: Mapping[str, Any],
+) -> str:
+    """Make saved feedback, execution, and success evidence reviewable."""
+
+    lessons = plan.get("applied_memory_actions", [])
+    if not lessons or "## Applied Prior-Run Feedback" in report:
+        return report
+
+    news = observations.get("news_analysis", {})
+    articles = news.get("articles", []) if isinstance(news, Mapping) else []
+    lines = ["", "## Applied Prior-Run Feedback"]
+    for lesson in lessons:
+        if not isinstance(lesson, Mapping):
+            continue
+        weakness = str(lesson.get("weakness") or "Unspecified finding")
+        action = str(lesson.get("next_run_action") or "Unspecified action")
+        success_check = str(lesson.get("success_check") or "Not specified")
+        lines.extend(
+            (
+                f"- **Saved weakness:** {weakness}",
+                f"  - **Action applied:** {action}",
+                f"  - **Success check:** {success_check}",
+                f"  - **Execution evidence:** {_action_evidence(action, articles)}",
+            )
+        )
+    return report.rstrip() + "\n" + "\n".join(lines) + "\n"
+
+
+def _action_evidence(action: str, articles: object) -> str:
+    if not isinstance(articles, list):
+        articles = []
+    normalized = action.casefold()
+    if "material event" in normalized and "cash flow" in normalized:
+        interpretations = [
+            str(article.get("optimized_analysis", {}).get("interpretation") or "")
+            for article in articles
+            if isinstance(article, Mapping)
+            and isinstance(article.get("optimized_analysis"), Mapping)
+        ]
+        excerpts = [item.strip() for item in interpretations if item.strip()]
+        passed = sum(
+            bool(article.get("evaluation", {}).get("substantive_reasoning_passed"))
+            for article in articles
+            if isinstance(article, Mapping)
+            and isinstance(article.get("evaluation"), Mapping)
+        )
+        excerpt = excerpts[0][:300] if excerpts else "No article interpretation available."
+        return (
+            f"The news specialist applied the action to {len(articles)} article(s); "
+            f"{passed} passed the substantive-reasoning check. Representative "
+            f"interpretation: {excerpt}"
+        )
+    if "citation" in normalized or "source url" in normalized:
+        links = [
+            str(article.get("url"))
+            for article in articles
+            if isinstance(article, Mapping) and article.get("url")
+        ]
+        return (
+            f"The replay retained {len(links)} provider source URL(s): "
+            + (", ".join(links[:3]) if links else "none available")
+        )
+    return (
+        "The planner and synthesizer received this action. Its success check "
+        "requires reviewer verification against the report evidence."
+    )

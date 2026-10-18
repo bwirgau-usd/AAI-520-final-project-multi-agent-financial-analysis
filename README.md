@@ -83,8 +83,10 @@ flowchart LR
 ### Research Planner
 
 - Interprets the requested stock symbol and user research question.
-- Creates a task plan based on available tools and required evidence.
-- Uses prior-run feedback as bounded planning context.
+- Separates the minimum required tools from optional tools selected with an
+  explicit reason, so a route no longer forces every available tool to run.
+- Converts structured prior-run lessons into visible objectives, questions,
+  actions, and success checks.
 
 ### Tool-Using Research Agent
 
@@ -114,6 +116,9 @@ flowchart LR
 
 - Scores the draft against a defined quality rubric.
 - Produces actionable feedback for weak or missing areas.
+- Revises news analysis when either structural completeness fails or the
+  substantive financial-reasoning score is below 60; unresolved work is
+  labeled `insufficient_reasoning_or_evidence`.
 - Revises the report until it satisfies a quality threshold or reaches a\
   configured iteration limit.
 
@@ -121,6 +126,7 @@ flowchart LR
 
 - Stores concise lessons, recurring data-quality issues, and prior research\
   notes.
+- Stores each lesson as a `weakness`, `next_run_action`, and `success_check`.
 - Retrieves only relevant memories for subsequent runs.
 - Avoids treating outdated memories as current market evidence.
 
@@ -148,8 +154,10 @@ needed.
 
 ### 3\. Evaluator–Optimizer
 
-The system evaluates specialist news analysis with four 25-point criteria. A\
-separate complete-report rubric scores completeness, grounding, reasoning,\
+The system evaluates specialist news analysis with four 25-point structural\
+criteria and a separate substantive financial-reasoning criterion. Either\
+failed threshold enters the bounded optimizer loop. A separate complete-report\
+rubric scores completeness, grounding, reasoning,\
 consistency, sources, and clarity. LangGraph sends failed reports through the\
 optimizer and back to evaluation until the threshold or revision limit is\
 reached. Initial/final scores, feedback, revisions, and graph trace remain\
@@ -330,7 +338,8 @@ jupyter lab notebooks/multi_agent_financial_analysis.ipynb
 ```
 
 Run the notebook from top to bottom. The setup section only constructs the\
-workflow; Section 7 performs two live runs for the same request, displays its structured\
+workflow; Section 7 performs a live evidence-collection run and a second run\
+that reanalyzes the exact evidence snapshot with saved feedback, displays its structured\
 artifacts, renders deterministic and model-generated reports, and displays the\
 architecture diagrams, news summary graphs, and 10-year price graph. Set\
 `DEFAULT_TICKER`, `RESEARCH_REQUEST`, and `OLLAMA_MODEL` in `.env` to change the defaults.
@@ -377,10 +386,15 @@ optimization, orchestration, reporting, diagrams, and failure isolation.
 
 ## Memory and Learning Across Runs
 
-The system will store short, inspectable research memories rather than silently\
-changing model behavior. Each memory should include a timestamp and enough\
-context to determine whether it remains relevant. Current API data takes\
-precedence over prior-run notes whenever the two conflict.
+The system stores short, inspectable research memories rather than silently\
+changing model behavior. Each entry includes a timestamp, prose summary, and\
+structured lessons containing a weakness, next-run action, and success check.\
+The planner adds retrieved actions to the next plan, and news analysis receives\
+relevant actions directly. The notebook compares Run 1 with a Run 2 replay of\
+the exact same tool observations and source articles, then displays the saved\
+weakness, changed plan, execution evidence, output excerpt, and before/after\
+quality measure. Current API data takes precedence over prior-run notes whenever\
+the two conflict.
 
 ## Project Deliverables
 

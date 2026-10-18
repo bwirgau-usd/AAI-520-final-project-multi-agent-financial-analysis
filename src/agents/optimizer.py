@@ -25,6 +25,7 @@ def evaluate_analysis(
     *,
     article: Mapping[str, Any] | None = None,
     threshold: float = 75,
+    substantive_threshold: float = 60,
 ) -> dict[str, Any]:
     """Apply the four-part rubric after rejecting placeholders and inventions."""
 
@@ -62,22 +63,31 @@ def evaluate_analysis(
         feedback.append("Include at least two evidence-based observations.")
 
     substantive_score = substantive_reasoning_score(observations, interpretation)
-    if score >= threshold and substantive_score < threshold:
+    if score >= threshold and substantive_score < substantive_threshold:
         feedback.append(
-            "Structural completeness passed, but substantive financial reasoning "
-            "or event-significance analysis remains limited."
+            "Structural completeness passed, but substantive reasoning remains "
+            "insufficient. Explain the financial transmission mechanism, cite "
+            "supporting article evidence, and state uncertainty. If the article "
+            "does not establish a material financial effect, say so explicitly."
         )
+
+    structural_passed = score >= threshold and bool(observations)
+    substantive_passed = substantive_score >= substantive_threshold
+    needs_revision = not structural_passed or not substantive_passed
 
     return {
         "score": score,
         "score_type": "structural_completeness_and_source_traceability",
-        "passed": score >= threshold and bool(observations),
+        "passed": structural_passed,
         "threshold": threshold,
         "feedback": feedback,
         "grounded_observations": observations,
         "rejected_observations": rejected_observations,
         "substantive_reasoning_score": substantive_score,
-        "substantive_reasoning_passed": substantive_score >= threshold,
+        "substantive_reasoning_threshold": substantive_threshold,
+        "substantive_reasoning_passed": substantive_passed,
+        "needs_revision": needs_revision,
+        "overall_passed": not needs_revision,
         "quality_dimensions": {
             "structural_completeness_and_source_traceability": score,
             "substantive_financial_reasoning_and_event_significance": (
@@ -118,6 +128,9 @@ and improvements.
 
 Use only supplied evidence. Do not invent facts or financial figures, remove
 uncertainty, predict stock prices, or recommend buy, sell, or hold.
+Explain the financial transmission mechanism, cite the supporting article
+evidence, and state uncertainty. If the article does not establish a material
+financial effect, say so explicitly instead of inventing significance.
 """.strip()
         evidence_fallback = evidence_based_fallback(
             article,
@@ -146,6 +159,9 @@ uncertainty, predict stock prices, or recommend buy, sell, or hold.
             or evidence_fallback["uncertainties"],
             "improvements": meaningful_text_list(parsed.get("improvements"))
             or meaningful_text_list(evaluation.get("feedback")),
+            "applied_memory_actions": meaningful_text_list(
+                analysis.get("applied_memory_actions")
+            ),
         }
 
     def optimize_report(

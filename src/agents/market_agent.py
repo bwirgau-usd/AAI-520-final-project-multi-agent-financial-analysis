@@ -26,6 +26,16 @@ class MarketResearchAgent:
     ) -> dict[str, Any]:
         selected = [name for name in plan.get("tools", []) if name in self.TOOL_NAMES]
         observations = _run_tools(symbol, selected, tools, progress)
+        return self.analyze_observations(observations, selected)
+
+    def analyze_observations(
+        self,
+        observations: Mapping[str, Any],
+        selected_tools: Sequence[str],
+    ) -> dict[str, Any]:
+        """Analyze already-collected evidence for reproducible replay runs."""
+
+        selected = [name for name in selected_tools if name in self.TOOL_NAMES]
         price = observations.get("price_data")
         metrics = dict(price) if isinstance(price, Mapping) else {}
         return {
